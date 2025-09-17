@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && npm run migration:safe && npm run seed:prod",
+    "build": "nest build && npm run seed:prod",
     "build:no-migrate": "nest build",
     "seed:prod": "ts-node scripts/seed-production-data.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -19,19 +19,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli",
-    "migration:generate": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d ./data-source.ts migration:generate",
-    "migration:generate:safe": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d ./data-source-generate.ts migration:generate",
-    "migration:create": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d ./data-source.ts migration:create",
-    "migration:run": "ts-node ./scripts/run-migrations.ts",
-    "migration:safe": "ts-node ./scripts/run-safe-migrations.ts",
-    "migration:test": "cp .env.test .env && ts-node ./scripts/run-safe-migrations.ts && cp .env.original .env",
-    "migration:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d ./data-source.ts migration:revert",
-    "migration:status": "ts-node ./scripts/verify-database-state.ts",
-    "db:migrate:prod": "node dist/scripts/run-migrations.js",
-    "db:migrate:safe-prod": "node dist/scripts/run-safe-migrations.js",
-    "db:setup-test": "mysql -u root -p < test-database-setup.sql"
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
