@@ -1,0 +1,8 @@
+Generate the Migration
+npm run migration:generate:safe -- src/migrations/AddNotificationSystem
+
+Run the Safe Migration
+npm run migration:safe
+
+Verify the Migration
+npx ts-node -r tsconfig-paths/register scripts/verify-database-state.ts
