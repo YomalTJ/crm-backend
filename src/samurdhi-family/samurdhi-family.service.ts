@@ -1008,60 +1008,70 @@ export class SamurdhiFamilyService {
     const toDbId = (part: string) => parseInt(part, 10).toString();
 
     switch (user.role.name) {
-      case 'GN Level User':
-        if (locationParts.length !== 5)
+      case 'GN Level User': {
+        const gnd = await this.gndRepo.findOne({
+          where: { id: user.locationCode },
+          select: ['gnd_id', 'gnd_name', 'zone_id', 'id'],
+        });
+        if (!gnd)
           throw new Error(
-            'GN Level User must have complete location code (5 parts)',
+            `GN Division not found for code ${user.locationCode}`,
           );
-        const gndId = toDbId(locationParts[4]);
+
         return {
           districts: [],
           dss: [],
           zones: [],
-          gndDivisions: await this.getGndsById(gndId),
+          gndDivisions: [gnd],
         };
+      }
 
-      case 'Bank/Zone Level User':
-        if (locationParts.length < 4)
-          throw new Error(
-            'Zone Level User must have at least 4 location parts',
-          );
-        const zoneId = toDbId(locationParts[3]);
-        const zone = await this.getZoneById(zoneId);
+      case 'Bank/Zone Level User': {
+        const zone = await this.zoneRepo.findOne({
+          where: { id: user.locationCode.split('-').slice(0, 4).join('-') },
+          select: ['zone_id', 'zone_name', 'ds_id', 'id'],
+        });
+        if (!zone)
+          throw new Error(`Zone not found for code ${user.locationCode}`);
+
         return {
-          districts: await this.getDistrictByZone(zoneId),
-          dss: await this.getDsByZone(zoneId),
+          districts: await this.getDistrictByZone(zone.zone_id),
+          dss: await this.getDsByZone(zone.zone_id),
           zones: [zone],
-          gndDivisions: await this.getGndsByZone(zoneId),
+          gndDivisions: await this.getGndsByZone(zone.zone_id),
         };
+      }
 
-      case 'Divisional Level User':
-        if (locationParts.length < 3)
-          throw new Error(
-            'Divisional Level User must have at least 3 location parts',
-          );
-        const dsId = toDbId(locationParts[2]);
-        const ds = await this.getDsById(dsId);
+      case 'Divisional Level User': {
+        const ds = await this.dsRepo.findOne({
+          where: { id: user.locationCode.split('-').slice(0, 3).join('-') },
+          select: ['ds_id', 'ds_name', 'district_id', 'id'],
+        });
+        if (!ds) throw new Error(`DS not found for code ${user.locationCode}`);
+
         return {
-          districts: await this.getDistrictByDs(dsId),
+          districts: await this.getDistrictByDs(ds.ds_id),
           dss: [ds],
-          zones: await this.getZonesByDs(dsId),
-          gndDivisions: await this.getGndsByDs(dsId),
+          zones: await this.getZonesByDs(ds.ds_id),
+          gndDivisions: await this.getGndsByDs(ds.ds_id),
         };
+      }
 
-      case 'District Level User':
-        if (locationParts.length < 2)
-          throw new Error(
-            'District Level User must have at least 2 location parts',
-          );
-        const districtId = toDbId(locationParts[1]);
-        const district = await this.getDistrictById(districtId);
+      case 'District Level User': {
+        const district = await this.districtRepo.findOne({
+          where: { id: user.locationCode.split('-').slice(0, 2).join('-') },
+          select: ['district_id', 'district_name', 'province_id', 'id'],
+        });
+        if (!district)
+          throw new Error(`District not found for code ${user.locationCode}`);
+
         return {
           districts: [district],
-          dss: await this.getDssByDistrict(districtId),
-          zones: await this.getZonesByDistrict(districtId),
-          gndDivisions: await this.getGndsByDistrict(districtId),
+          dss: await this.getDssByDistrict(district.district_id),
+          zones: await this.getZonesByDistrict(district.district_id),
+          gndDivisions: await this.getGndsByDistrict(district.district_id),
         };
+      }
 
       case 'National Level User':
         return {
@@ -1219,27 +1229,60 @@ export class SamurdhiFamilyService {
     if (user.role.name !== 'National Level User') {
       const locationParts = user.locationCode.split('-');
 
+      // First, let's find the actual IDs from the location tables
+      // based on the location code parts
       switch (user.role.name) {
         case 'GN Level User':
-          const gndId = parseInt(locationParts[4], 10).toString();
-          query.andWhere('family.gnd_id = :gndId', { gndId });
+          // For GN level, we need to find the GND by its code
+          const gndCode = user.locationCode;
+          const gnd = await this.gndRepo.findOne({
+            where: { id: gndCode }, // assuming id field stores the full code like '1-1-09-03-175'
+          });
+          if (gnd) {
+            query.andWhere('family.gnd_id = :gndId', { gndId: gnd.gnd_id });
+          }
           break;
+
         case 'Bank/Zone Level User':
-          const zoneId = parseInt(locationParts[3], 10);
-          query.andWhere('family.zone_id = :zoneId', { zoneId });
+          // For zone level, find zone by its code
+          const zoneCode = locationParts.slice(0, 4).join('-'); // '1-1-09-03'
+          const zone = await this.zoneRepo.findOne({
+            where: { id: zoneCode },
+          });
+          if (zone) {
+            query.andWhere('family.zone_id = :zoneId', {
+              zoneId: zone.zone_id,
+            });
+          }
           break;
+
         case 'Divisional Level User':
-          const dsId = parseInt(locationParts[2], 10);
-          query.andWhere('family.ds_id = :dsId', { dsId });
+          // For DS level, find DS by its code
+          const dsCode = locationParts.slice(0, 3).join('-'); // '1-1-09'
+          const ds = await this.dsRepo.findOne({
+            where: { id: dsCode },
+          });
+          if (ds) {
+            query.andWhere('family.ds_id = :dsId', { dsId: ds.ds_id });
+          }
           break;
+
         case 'District Level User':
-          const districtId = parseInt(locationParts[1], 10);
-          query.andWhere('family.district_id = :districtId', { districtId });
+          // For district level, find district by its code
+          const districtCode = locationParts.slice(0, 2).join('-'); // '1-1'
+          const district = await this.districtRepo.findOne({
+            where: { id: districtCode },
+          });
+          if (district) {
+            query.andWhere('family.district_id = :districtId', {
+              districtId: district.district_id,
+            });
+          }
           break;
       }
     }
 
-    // Apply additional filters
+    // Apply additional filters (rest of your code remains the same)
     if (filters.district_id) {
       query.andWhere('family.district_id = :district_id', {
         district_id: filters.district_id,
