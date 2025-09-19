@@ -11,7 +11,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://54.206.38.94:3000'],
+    origin: ['http://localhost:3000', 'http://54.206.38.94:3000', 'https://crm-frontend-black.vercel.app'],
     credentials: true,
   });
 
