@@ -18,6 +18,8 @@ import { BeneficiaryTypeCountFilterDto } from './dto/beneficiary-type-count-filt
 import { BeneficiaryTypeCountResponseDto } from './dto/beneficiary-type-count-response.dto';
 import { EmpowermentDimensionCountFilterDto } from './dto/empowerment-dimension-count-filter.dto';
 import { EmpowermentDimensionCountResponseDto } from './dto/empowerment-dimension-count-response.dto';
+import { GrantUtilizationFilterDto } from './dto/grant-utilization-filter.dto';
+import { GrantUtilizationResponseDto } from './dto/grant-utilization-response.dto';
 
 @Controller('beneficiaries')
 export class BeneficiaryController {
@@ -77,5 +79,12 @@ export class BeneficiaryController {
     @Query() filter: EmpowermentDimensionCountFilterDto,
   ): Promise<EmpowermentDimensionCountResponseDto> {
     return this.beneficiaryService.getEmpowermentDimensionCounts(filter);
+  }
+
+  @Get('grant-utilization')
+  async getGrantUtilization(
+    @Query() filter: GrantUtilizationFilterDto,
+  ): Promise<GrantUtilizationResponseDto> {
+    return this.beneficiaryService.getGrantUtilization(filter);
   }
 }

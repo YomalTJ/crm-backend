@@ -23,6 +23,8 @@ import { BeneficiaryTypeCountFilterDto } from './dto/beneficiary-type-count-filt
 import { BeneficiaryTypeCountResponseDto } from './dto/beneficiary-type-count-response.dto';
 import { EmpowermentDimensionCountResponseDto } from './dto/empowerment-dimension-count-response.dto';
 import { EmpowermentDimensionCountFilterDto } from './dto/empowerment-dimension-count-filter.dto';
+import { GrantUtilizationFilterDto } from './dto/grant-utilization-filter.dto';
+import { GrantUtilizationResponseDto } from './dto/grant-utilization-response.dto';
 
 @Injectable()
 export class BeneficiaryService {
@@ -368,6 +370,12 @@ export class BeneficiaryService {
       ed.nameEnglish as empowerment_name_english,
       ed.nameSinhala as empowerment_name_sinhala,
       ed.nameTamil as empowerment_name_tamil,
+
+      -- Employment Facilitation
+      jf.job_field_id as job_field_id,
+      jf.nameEnglish as employment_facilitation_english_name,
+      jf.nameSinhala as employment_facilitation_sinhala_name,
+      jf.nameTamil as employment_facilitation_tamil_name,
       
       -- Livelihood
       l.id as livelihood_id,
@@ -393,6 +401,7 @@ export class BeneficiaryService {
     LEFT JOIN zone z ON sf.zone_id = z.zone_id
     LEFT JOIN gnd g ON sf.gnd_id = g.gnd_id
     LEFT JOIN empowerment_dimension ed ON sf.empowerment_dimension_id = ed.empowerment_dimension_id
+    LEFT JOIN job_field jf ON sf.job_field_id = jf.job_field_id
     LEFT JOIN livelihoods l ON sf.livelihood_id = l.id
     LEFT JOIN project_type pt ON sf.project_type_id = pt.project_type_id
     LEFT JOIN beneficiary_status bs ON sf.beneficiary_type_id = bs.beneficiary_type_id
@@ -465,6 +474,15 @@ export class BeneficiaryService {
             nameEnglish: result.empowerment_name_english,
             nameSinhala: result.empowerment_name_sinhala,
             nameTamil: result.empowerment_name_tamil,
+          }
+        : undefined,
+
+      employmentFacilitation: result.job_field_id
+        ? {
+            id: result.job_field_id,
+            english_name: result.employment_facilitation_english_name,
+            sinhala_name: result.employment_facilitation_sinhala_name,
+            tamil_name: result.employment_facilitation_tamil_name,
           }
         : undefined,
 
@@ -1245,26 +1263,186 @@ export class BeneficiaryService {
       location,
     };
   }
+
+  async getGrantUtilization(
+    filter: GrantUtilizationFilterDto,
+  ): Promise<GrantUtilizationResponseDto> {
+    let query = `
+  SELECT 
+    COUNT(CASE WHEN u.financialAid IS NOT NULL THEN 1 END) as financial_aid_count,
+    COALESCE(SUM(CAST(u.financialAid AS DECIMAL(18,2))), 0) as financial_aid_total,
+
+    COUNT(CASE WHEN u.interestSubsidizedLoan IS NOT NULL THEN 1 END) as interest_loan_count,
+    COALESCE(SUM(CAST(u.interestSubsidizedLoan AS DECIMAL(18,2))), 0) as interest_loan_total,
+
+    COUNT(CASE WHEN u.samurdiBankLoan IS NOT NULL THEN 1 END) as samurdi_loan_count,
+    COALESCE(SUM(CAST(u.samurdiBankLoan AS DECIMAL(18,2))), 0) as samurdi_loan_total,
+
+    COUNT(u.id) as total_projects,
+    COALESCE(SUM(CAST(
+      COALESCE(u.financialAid, 0) + 
+      COALESCE(u.interestSubsidizedLoan, 0) + 
+      COALESCE(u.samurdiBankLoan, 0)
+    AS DECIMAL(18,2))), 0) as total_amount
+
+  FROM grant_utilization u
+  LEFT JOIN samurdhi_family sf ON 
+  (sf.aswasumaHouseholdNo = u.hhNumber_or_nic OR sf.nic = u.hhNumber_or_nic)
+  LEFT JOIN districts d ON sf.district_id = d.district_id
+  LEFT JOIN ds ds ON sf.ds_id = ds.ds_id
+  LEFT JOIN zone z ON sf.zone_id = z.zone_id
+  LEFT JOIN gnd g ON sf.gnd_id = g.gnd_id
+  LEFT JOIN beneficiary_status bs ON sf.beneficiary_type_id = bs.beneficiary_type_id
+  WHERE (u.financialAid IS NOT NULL OR u.interestSubsidizedLoan IS NOT NULL OR u.samurdiBankLoan IS NOT NULL)
+  `;
+
+    const paramValues: any[] = [];
+
+    if (filter.district_id) {
+      query += ' AND sf.district_id = ?';
+      paramValues.push(filter.district_id);
+    }
+
+    if (filter.ds_id) {
+      query += ' AND sf.ds_id = ?';
+      paramValues.push(filter.ds_id);
+    }
+
+    if (filter.zone_id) {
+      query += ' AND sf.zone_id = ?';
+      paramValues.push(filter.zone_id);
+    }
+
+    if (filter.gnd_id) {
+      query += ' AND sf.gnd_id = ?';
+      paramValues.push(filter.gnd_id);
+    }
+
+    if (filter.mainProgram) {
+      query += ' AND sf.mainProgram = ?';
+      paramValues.push(filter.mainProgram);
+    }
+
+    if (filter.beneficiary_type_id) {
+      query += ' AND sf.beneficiary_type_id = ?';
+      paramValues.push(filter.beneficiary_type_id);
+    }
+
+    const results = await this.entityManager.query(query, paramValues);
+    const result = results[0];
+
+    // Get location information if location filters were applied
+    let location: any = undefined;
+    const hasLocationFilter =
+      filter.district_id || filter.ds_id || filter.zone_id || filter.gnd_id;
+
+    if (hasLocationFilter) {
+      let locationQuery = `
+      SELECT 
+        d.district_id as district_id,
+        d.district_name as district_name,
+        ds.ds_id as ds_id,
+        ds.ds_name as ds_name,
+        z.zone_id as zone_id,
+        z.zone_name as zone_name,
+        g.gnd_id as gnd_id,
+        g.gnd_name as gnd_name
+      FROM samurdhi_family sf
+      LEFT JOIN districts d ON sf.district_id = d.district_id
+      LEFT JOIN ds ds ON sf.ds_id = ds.ds_id
+      LEFT JOIN zone z ON sf.zone_id = z.zone_id
+      LEFT JOIN gnd g ON sf.gnd_id = g.gnd_id
+      WHERE 1=1
+    `;
+
+      const locationParams: any[] = [];
+
+      if (filter.district_id) {
+        locationQuery += ' AND sf.district_id = ?';
+        locationParams.push(filter.district_id);
+      }
+
+      if (filter.ds_id) {
+        locationQuery += ' AND sf.ds_id = ?';
+        locationParams.push(filter.ds_id);
+      }
+
+      if (filter.zone_id) {
+        locationQuery += ' AND sf.zone_id = ?';
+        locationParams.push(filter.zone_id);
+      }
+
+      if (filter.gnd_id) {
+        locationQuery += ' AND sf.gnd_id = ?';
+        locationParams.push(filter.gnd_id);
+      }
+
+      if (filter.mainProgram) {
+        locationQuery += ' AND sf.mainProgram = ?';
+        locationParams.push(filter.mainProgram);
+      }
+
+      if (filter.beneficiary_type_id) {
+        locationQuery += ' AND sf.beneficiary_type_id = ?';
+        locationParams.push(filter.beneficiary_type_id);
+      }
+
+      locationQuery += ' LIMIT 1';
+
+      const locationResults = await this.entityManager.query(
+        locationQuery,
+        locationParams,
+      );
+      const locationResult = locationResults[0];
+
+      if (locationResult) {
+        location = {
+          district: locationResult.district_id
+            ? {
+                district_id: locationResult.district_id,
+                district_name: locationResult.district_name,
+              }
+            : undefined,
+          ds: locationResult.ds_id
+            ? {
+                ds_id: locationResult.ds_id,
+                ds_name: locationResult.ds_name,
+              }
+            : undefined,
+          zone: locationResult.zone_id
+            ? {
+                zone_id: locationResult.zone_id,
+                zone_name: locationResult.zone_name,
+              }
+            : undefined,
+          gnd: locationResult.gnd_id
+            ? {
+                gnd_id: locationResult.gnd_id,
+                gnd_name: locationResult.gnd_name,
+              }
+            : undefined,
+        };
+      }
+    }
+
+    return {
+      location,
+      financialAid: {
+        totalProjects: parseInt(result.financial_aid_count) || 0,
+        totalAmount: parseFloat(result.financial_aid_total) || 0,
+      },
+      interestSubsidizedLoan: {
+        totalProjects: parseInt(result.interest_loan_count) || 0,
+        totalAmount: parseFloat(result.interest_loan_total) || 0,
+      },
+      samurdiBankLoan: {
+        totalProjects: parseInt(result.samurdi_loan_count) || 0,
+        totalAmount: parseFloat(result.samurdi_loan_total) || 0,
+      },
+      overallTotal: {
+        totalProjects: parseInt(result.total_projects) || 0,
+        totalAmount: parseFloat(result.total_amount) || 0,
+      },
+    };
+  }
 }
- /*   
- 
-'2', '1-1-03-02-100', 'Aluthkade East/අලුත්කඩේ නැගෙනහිර/அலுத்த்கடே கிழக்கு', '1', '100' 
-'1', '1-1-30-01-035', 'Galwala/ගල්වල/கல்வல', '1', '35' 
-'3', '2-1-09-03-080', 'Hureegolla/හුරීගොල්ල/ஹுரீகொல்ல', '1', '80' 
-'3', '2-1-36-03-415', 'Gannoruwa East/ගන්නෝරුව නැගෙනහිර/கன்னோறுவ கிழக்கு', '1', '415' 
-'4', '5-1-18-04-180', 'Puliyanthivu West/පුලියන්තිවු බටහිර/புலியந்தீவு மேற்கு', '1', '180'
-'1', '5-1-21-01-055', 'Nediyamadu/නැදියමඩු/நெடியமடு', '1', '55' 
-'1', '1-2-33-01-450', 'Enderamulla West/එඬේරමුල්ල බටහිර/எண்டெரமுல்ல மேற்கு', '1', '450' 
-'3', '1-2-03-03-070', 'Kudapaduwa South/කුඩපාඩුව දකුණ/குடபாடுவா தெற்கு', '1', '70' 
-'4', '3-1-45-04-085', 'Ihalagoda West/ඉහලගොඩ බටහිර/இஹலகொட மேற்கு', '1', '85' 
-'2', '3-1-33-02-105', 'Kondagala/කොන්ඩගල/கொண்டகல', '1', '105'
-
-
-
-'3', '1-1-03-02', 'Central Colombo-2/මධ්‍යම කොළඹ-2/மத்திய கொழும்பு-2', 1, 2
-'30', '1-1-30-01', 'Dehiwala/දෙහිවල/தேஹிவல', 1, 1
-'30', '2-1-09-03', 'Dodangolla/දොඩංගොල්ල/தொடங்கொல்லா', 1, 3
-'30', '2-1-36-03', 'Gannoruwa/ගන්නෝරුව/கன்னோறுவா', 1, 3
-
- 
- */

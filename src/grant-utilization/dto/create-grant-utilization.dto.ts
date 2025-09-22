@@ -12,6 +12,23 @@ export class CreateGrantUtilizationDto {
   @IsNotEmpty()
   hhNumberOrNic: string;
 
+  // Location IDs
+  @IsString()
+  @IsOptional()
+  districtId?: string;
+
+  @IsString()
+  @IsOptional()
+  dsId?: string;
+
+  @IsString()
+  @IsOptional()
+  zoneId?: string;
+
+  @IsString()
+  @IsOptional()
+  gndId?: string;
+
   // Basic grant information
   @IsDecimal()
   @IsNotEmpty()
@@ -20,6 +37,19 @@ export class CreateGrantUtilizationDto {
   @IsDateString()
   @IsNotEmpty()
   grantDate: string;
+
+  // Grant type fields
+  @IsDecimal()
+  @IsOptional()
+  financialAid?: number;
+
+  @IsDecimal()
+  @IsOptional()
+  interestSubsidizedLoan?: number;
+
+  @IsDecimal()
+  @IsOptional()
+  samurdiBankLoan?: number;
 
   // Livelihood/Self-employment section
   @IsDateString()

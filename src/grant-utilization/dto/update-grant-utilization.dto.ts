@@ -1,6 +1,23 @@
-import { IsDecimal, IsOptional, IsDateString, IsString } from "class-validator";
+import { IsDecimal, IsOptional, IsDateString, IsString } from 'class-validator';
 
 export class UpdateGrantUtilizationDto {
+  // Location IDs
+  @IsString()
+  @IsOptional()
+  districtId?: string;
+
+  @IsString()
+  @IsOptional()
+  dsId?: string;
+
+  @IsString()
+  @IsOptional()
+  zoneId?: string;
+
+  @IsString()
+  @IsOptional()
+  gndId?: string;
+
   // Basic grant information
   @IsDecimal()
   @IsOptional()
@@ -9,6 +26,19 @@ export class UpdateGrantUtilizationDto {
   @IsDateString()
   @IsOptional()
   grantDate?: string;
+
+  // Grant type fields
+  @IsDecimal()
+  @IsOptional()
+  financialAid?: number;
+
+  @IsDecimal()
+  @IsOptional()
+  interestSubsidizedLoan?: number;
+
+  @IsDecimal()
+  @IsOptional()
+  samurdiBankLoan?: number;
 
   // Livelihood/Self-employment section
   @IsDateString()

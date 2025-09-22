@@ -123,6 +123,7 @@ export class SamurdhiFamilyService {
       aswasumaHouseholdNo: dto.aswasumaHouseholdNo,
       nic: dto.nic,
       beneficiaryName: dto.beneficiaryName,
+      beneficiaryAge: dto.beneficiaryAge,
       beneficiaryGender: dto.beneficiaryGender,
       address: dto.address,
       mobilePhone: dto.mobilePhone,
@@ -307,6 +308,7 @@ export class SamurdhiFamilyService {
       beneficiaryDetails: {
         name: family.beneficiaryName,
         gender: family.beneficiaryGender,
+        age: family.beneficiaryAge,
       },
       mainProgram: family.mainProgram,
       nic: family.nic,
@@ -601,7 +603,9 @@ export class SamurdhiFamilyService {
       if (dto.beneficiaryName !== undefined)
         updateData.beneficiaryName = dto.beneficiaryName;
       if (dto.beneficiaryGender !== undefined)
-        updateData.beneficiaryGender = dto.beneficiaryGender;
+        if (dto.beneficiaryAge !== undefined)
+          updateData.beneficiaryAge = dto.beneficiaryAge;
+      updateData.beneficiaryGender = dto.beneficiaryGender;
       if (dto.address !== undefined) updateData.address = dto.address;
       if (dto.mobilePhone !== undefined)
         updateData.mobilePhone = dto.mobilePhone;
@@ -1413,6 +1417,7 @@ export class SamurdhiFamilyService {
       data: results.map((family) => ({
         id: family.id,
         beneficiaryName: family.beneficiaryName,
+        beneficiaryAge: family.beneficiaryAge,
         aswasumaHouseholdNo: family.aswasumaHouseholdNo,
         nic: family.nic,
         mobilePhone: family.mobilePhone,
@@ -1520,6 +1525,7 @@ export class SamurdhiFamilyService {
       data: results.map((family) => ({
         id: family.id,
         beneficiaryName: family.beneficiaryName,
+        beneficiaryAge: family.beneficiaryAge,
         nic: family.nic,
         mobilePhone: family.mobilePhone,
         telephone: family.telephone,

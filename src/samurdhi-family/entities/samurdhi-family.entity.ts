@@ -98,6 +98,9 @@ export class SamurdhiFamily {
   @Column()
   beneficiaryName: string;
 
+  @Column({ nullable: true })
+  beneficiaryAge: number;
+
   @Column()
   beneficiaryGender: string;
 

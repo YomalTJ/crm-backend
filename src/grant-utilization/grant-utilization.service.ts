@@ -28,7 +28,7 @@ export class GrantUtilizationService {
     @InjectRepository(Zone)
     private readonly zoneRepo: Repository<Zone>,
     private auditService: AuditService,
-  ) { }
+  ) {}
 
   async create(createDto: CreateGrantUtilizationDto, staffId: string) {
     const staff = await this.grantUtilizationRepo.manager.findOneByOrFail(
@@ -40,12 +40,22 @@ export class GrantUtilizationService {
 
     const samurdhiFamily = await this.samurdhiFamilyRepo.findOneOrFail({
       where: [{ aswasumaHouseholdNo: hhNumberOrNic }, { nic: hhNumberOrNic }],
+      relations: [
+        'district',
+        'divisionalSecretariat',
+        'gramaNiladhariDivision',
+        'samurdhiBank',
+      ],
     });
 
     const grantUtilization = this.grantUtilizationRepo.create({
       ...rest,
       hhNumberOrNic,
       createdBy: staff,
+      districtId: samurdhiFamily.district?.district_id,
+      dsId: samurdhiFamily.divisionalSecretariat?.ds_id,
+      zoneId: samurdhiFamily.samurdhiBank?.zone_id,
+      gndId: samurdhiFamily.gramaNiladhariDivision?.gnd_id,
     });
 
     const savedGrantUtilization =
@@ -106,7 +116,12 @@ export class GrantUtilizationService {
     // First get the samurdhi family details
     const samurdhiFamily = await this.samurdhiFamilyRepo.findOne({
       where: [{ aswasumaHouseholdNo: hhNumberOrNic }, { nic: hhNumberOrNic }],
-      relations: ['district', 'divisionalSecretariat', 'gramaNiladhariDivision', 'samurdhiBank'],
+      relations: [
+        'district',
+        'divisionalSecretariat',
+        'gramaNiladhariDivision',
+        'samurdhiBank',
+      ],
     });
 
     if (!samurdhiFamily) {
@@ -145,8 +160,15 @@ export class GrantUtilizationService {
       },
       grantUtilizations: grantUtilizations.map((utilization) => ({
         id: utilization.id,
+        districtId: utilization.districtId,
+        dsId: utilization.dsId,
+        zoneId: utilization.zoneId,
+        gndId: utilization.gndId,
         amount: utilization.amount,
         grantDate: utilization.grantDate,
+        financialAid: utilization.financialAid,
+        interestSubsidizedLoan: utilization.interestSubsidizedLoan,
+        samurdiBankLoan: utilization.samurdiBankLoan,
         purchaseDate: utilization.purchaseDate,
         equipmentPurchased: utilization.equipmentPurchased,
         animalsPurchased: utilization.animalsPurchased,

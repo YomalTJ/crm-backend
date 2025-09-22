@@ -53,6 +53,10 @@ export class UpdateSamurdhiFamilyDto {
   @IsOptional() @IsString() beneficiaryName?: string;
 
   @IsOptional()
+  @IsNumber()
+  beneficiaryAge?: number;
+
+  @IsOptional()
   @IsEnum(['Female', 'Male', 'Other'])
   beneficiaryGender?: string;
 

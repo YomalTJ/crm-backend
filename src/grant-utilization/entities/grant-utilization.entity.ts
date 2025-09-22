@@ -1,8 +1,3 @@
-import { District } from 'src/location/entities/district.entity';
-import { Ds } from 'src/location/entities/ds.entity';
-import { Gnd } from 'src/location/entities/gnd.entity';
-import { Zone } from 'src/location/entities/zone.entity';
-import { SamurdhiFamily } from 'src/samurdhi-family/entities/samurdhi-family.entity';
 import { Staff } from 'src/staff/entities/staff.entity';
 import {
   Column,
@@ -20,12 +15,35 @@ export class GrantUtilization {
   @Column({ name: 'hhNumber_or_nic' })
   hhNumberOrNic: string;
 
+  // Location IDs
+  @Column({ name: 'district_id', nullable: true })
+  districtId: string;
+
+  @Column({ name: 'ds_id', nullable: true })
+  dsId: string;
+
+  @Column({ name: 'zone_id', nullable: true })
+  zoneId: string;
+
+  @Column({ name: 'gnd_id', nullable: true })
+  gndId: string;
+
   // Basic grant information
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
 
   @Column({ type: 'date' })
   grantDate: Date;
+
+  // Grant type fields
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  financialAid: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  interestSubsidizedLoan: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  samurdiBankLoan: number;
 
   // Livelihood/Self-employment section
   @Column({ type: 'date', nullable: true })

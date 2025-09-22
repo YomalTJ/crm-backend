@@ -48,6 +48,10 @@ export class CreateSamurdhiFamilyDto {
 
   @IsString() beneficiaryName: string;
 
+  @IsOptional()
+  @IsNumber()
+  beneficiaryAge?: number;
+
   @IsEnum(['Female', 'Male', 'Other'])
   beneficiaryGender: string;
 
