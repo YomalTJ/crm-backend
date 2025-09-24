@@ -26,7 +26,7 @@ export class HouseholdCitizenService {
     if (!household) {
       throw new Error('Household not found');
     }
-    
+
     return {
       household: {
         hhReference: household.hhReference,
@@ -53,8 +53,18 @@ export class HouseholdCitizenService {
       select: ['hhReference'],
     });
 
+    const sortedHouseholds = households.sort((a, b) => {
+      const aLastPart = a.hhReference.split('-').pop();
+      const bLastPart = b.hhReference.split('-').pop();
+
+      const aNumber = aLastPart ? parseInt(aLastPart, 10) : 0;
+      const bNumber = bLastPart ? parseInt(bLastPart, 10) : 0;
+
+      return aNumber - bNumber;
+    });
+
     return {
-      hhReferences: households.map(household => household.hhReference),
+      hhReferences: sortedHouseholds.map((household) => household.hhReference),
     };
   }
 }
