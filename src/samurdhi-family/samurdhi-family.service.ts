@@ -1546,4 +1546,36 @@ export class SamurdhiFamilyService {
       },
     };
   }
+
+  async checkExistsByNic(nic: string) {
+    const existing = await this.familyRepo.findOne({
+      where: { nic },
+      select: ['id', 'beneficiaryName'],
+    });
+
+    if (existing) {
+      return {
+        exists: true,
+        message: `A beneficiary with NIC ${nic} already exists in the system.`,
+      };
+    }
+
+    return { exists: false };
+  }
+
+  async checkExistsByHousehold(householdNo: string) {
+    const existing = await this.familyRepo.findOne({
+      where: { aswasumaHouseholdNo: householdNo },
+      select: ['id', 'beneficiaryName'],
+    });
+
+    if (existing) {
+      return {
+        exists: true,
+        message: `A beneficiary with household number ${householdNo} already exists in the system.`,
+      };
+    }
+
+    return { exists: false };
+  }
 }

@@ -143,4 +143,17 @@ export class SamurdhiFamilyController {
       limit,
     });
   }
+
+  @Get('check-exists')
+  checkExists(
+    @Query('nic') nic?: string,
+    @Query('household') household?: string,
+  ) {
+    if (nic) {
+      return this.familyService.checkExistsByNic(nic);
+    } else if (household) {
+      return this.familyService.checkExistsByHousehold(household);
+    }
+    throw new BadRequestException('Either NIC or household number is required');
+  }
 }
