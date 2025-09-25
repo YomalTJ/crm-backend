@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   Param,
@@ -23,17 +24,24 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('samurdhi-family')
 export class SamurdhiFamilyController {
-  constructor(private readonly familyService: SamurdhiFamilyService) {}
+  constructor(private readonly familyService: SamurdhiFamilyService) { }
 
   @Post()
   @UseInterceptors(FileInterceptor('consentLetter'))
-  create(
+  async create(
     @Body() dto: CreateSamurdhiFamilyDto,
     @UploadedFile() consentLetter: Express.Multer.File,
     @Req() req: Request,
   ) {
-    const staffId = req['user'].userId;
-    return this.familyService.create(dto, staffId, consentLetter);
+    try {
+      const staffId = req['user'].userId;
+      return await this.familyService.create(dto, staffId, consentLetter);
+    } catch (error) {
+      if (error.message.includes('already exists')) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
   }
 
   @Get('count-report')
@@ -145,14 +153,14 @@ export class SamurdhiFamilyController {
   }
 
   @Get('check-exists')
-  checkExists(
+  async checkExists(
     @Query('nic') nic?: string,
-    @Query('household') household?: string,
+    @Query('household') household?: string
   ) {
     if (nic) {
-      return this.familyService.checkExistsByNic(nic);
+      return await this.familyService.checkExistsByNic(nic);
     } else if (household) {
-      return this.familyService.checkExistsByHousehold(household);
+      return await this.familyService.checkExistsByHousehold(household);
     }
     throw new BadRequestException('Either NIC or household number is required');
   }

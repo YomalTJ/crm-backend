@@ -1547,32 +1547,34 @@ export class SamurdhiFamilyService {
     };
   }
 
-  async checkExistsByNic(nic: string) {
+  async checkExistsByHousehold(householdNo: string) {
     const existing = await this.familyRepo.findOne({
-      where: { nic },
-      select: ['id', 'beneficiaryName'],
+      where: { aswasumaHouseholdNo: householdNo },
+      select: ['id', 'beneficiaryName', 'aswasumaHouseholdNo'],
     });
 
     if (existing) {
       return {
         exists: true,
-        message: `A beneficiary with NIC ${nic} already exists in the system.`,
+        message: `A beneficiary record with household number ${householdNo} already exists in the system.`,
+        beneficiaryName: existing.beneficiaryName,
       };
     }
 
     return { exists: false };
   }
 
-  async checkExistsByHousehold(householdNo: string) {
+  async checkExistsByNic(nic: string) {
     const existing = await this.familyRepo.findOne({
-      where: { aswasumaHouseholdNo: householdNo },
-      select: ['id', 'beneficiaryName'],
+      where: { nic },
+      select: ['id', 'beneficiaryName', 'nic'],
     });
 
     if (existing) {
       return {
         exists: true,
-        message: `A beneficiary with household number ${householdNo} already exists in the system.`,
+        message: `A beneficiary record with NIC ${nic} already exists in the system.`,
+        beneficiaryName: existing.beneficiaryName,
       };
     }
 
