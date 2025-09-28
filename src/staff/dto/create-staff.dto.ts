@@ -5,6 +5,8 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsArray,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateStaffDto {
@@ -26,9 +28,18 @@ export class CreateStaffDto {
   })
   password: string;
 
+  @IsString()
+  @IsOptional()
+  wbbPassword?: string;
+
   @IsUUID()
   userRoleId: string;
 
   @IsString()
   locationCode: string;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  additionalLocationCodes?: string[]; // For creating multiple records in one call
 }

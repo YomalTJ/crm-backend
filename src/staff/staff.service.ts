@@ -1,3 +1,4 @@
+// staff.service.ts
 import {
   BadRequestException,
   ForbiddenException,
@@ -8,7 +9,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Staff } from './entities/staff.entity';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { UserRole } from 'src/user-role/entities/user-role.entity';
@@ -42,26 +43,122 @@ export class StaffService {
       );
     }
 
+    // Check if username + locationCode combination already exists
     const existing = await this.staffRepo.findOne({
-      where: { username: dto.username },
+      where: {
+        username: dto.username,
+        locationCode: dto.locationCode,
+      },
     });
-    if (existing) throw new BadRequestException('Username already exists');
 
+    if (existing) {
+      throw new BadRequestException(
+        'Staff member with this username already exists for the specified location',
+      );
+    }
+
+    // Hash the regular password (for your system authentication)
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    // Store WBB password as plain text (or encrypt it, but DON'T hash it)
+    const wbbPassword = dto.wbbPassword || null;
+
     const staff = this.staffRepo.create({
-      ...dto,
+      name: dto.name,
+      username: dto.username,
+      language: dto.language,
       password: hashedPassword,
+      wbbPassword: wbbPassword, // Store directly without hashing
+      locationCode: dto.locationCode,
       role: { id: dto.userRoleId },
       addedBy: { id: userId } as Staff,
     });
 
-    return this.staffRepo.save(staff);
+    try {
+      return await this.staffRepo.save(staff);
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new BadRequestException(
+          'Staff member with this username already exists for the specified location',
+        );
+      }
+      throw error;
+    }
+  }
+
+  // New method to create multiple staff records for different locations
+  async createMultiple(dtos: CreateStaffDto[], userId: string) {
+    const creatingUser = await this.staffRepo.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    if (!creatingUser || creatingUser.role.name !== 'National Level User') {
+      throw new ForbiddenException(
+        'Only National Level Users can create staff members',
+      );
+    }
+
+    // Define proper type for results
+    const results: Array<Staff | { error: string; dto: CreateStaffDto }> = [];
+
+    for (const dto of dtos) {
+      try {
+        // Check if username + locationCode combination already exists
+        const existing = await this.staffRepo.findOne({
+          where: {
+            username: dto.username,
+            locationCode: dto.locationCode,
+          },
+        });
+
+        if (existing) {
+          throw new BadRequestException(
+            `Staff member with username ${dto.username} already exists for location ${dto.locationCode}`,
+          );
+        }
+
+        const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+        const hashedWbbPassword = dto.wbbPassword
+          ? await bcrypt.hash(dto.wbbPassword, 10)
+          : null;
+
+        const staff = this.staffRepo.create({
+          name: dto.name,
+          username: dto.username,
+          language: dto.language,
+          password: hashedPassword,
+          wbbPassword: hashedWbbPassword,
+          locationCode: dto.locationCode,
+          role: { id: dto.userRoleId },
+          addedBy: { id: userId } as Staff,
+        });
+
+        const savedStaff = await this.staffRepo.save(staff);
+        results.push(savedStaff);
+      } catch (error) {
+        results.push({ error: error.message, dto });
+      }
+    }
+
+    return results;
   }
 
   async findAll(userId: string) {
     return this.staffRepo.find({
       where: { addedBy: { id: userId } },
+      relations: ['role'],
+    });
+  }
+
+  // New method to find all staff records for a specific username
+  async findByUsername(username: string, userId: string) {
+    return this.staffRepo.find({
+      where: {
+        username,
+        addedBy: { id: userId },
+      },
       relations: ['role'],
     });
   }
@@ -77,11 +174,38 @@ export class StaffService {
 
   async update(id: string, dto: UpdateStaffDto, userId: string) {
     const staff = await this.findOne(id, userId);
+
+    // If updating username or locationCode, check for duplicates
+    if (dto.username || dto.locationCode) {
+      const whereCondition: any = {
+        username: dto.username || staff.username,
+        locationCode: dto.locationCode || staff.locationCode,
+      };
+
+      // Add condition to exclude current record using Not operator
+      whereCondition.id = Not(id);
+
+      const existing = await this.staffRepo.findOne({
+        where: whereCondition,
+      });
+
+      if (existing) {
+        throw new BadRequestException(
+          'Staff member with this username already exists for the specified location',
+        );
+      }
+    }
+
     if (dto.userRoleId) {
       const role = await this.roleRepo.findOneBy({ id: dto.userRoleId });
       if (!role) throw new NotFoundException('User role not found');
       staff.role = role;
     }
+
+    if (dto.wbbPassword) {
+      staff.wbbPassword = await bcrypt.hash(dto.wbbPassword, 10);
+    }
+
     Object.assign(staff, dto);
     return this.staffRepo.save(staff);
   }
@@ -91,135 +215,69 @@ export class StaffService {
     return this.staffRepo.remove(staff);
   }
 
+  // New method to remove all staff records for a specific username
+  async removeByUsername(username: string, userId: string) {
+    const staffMembers = await this.findByUsername(username, userId);
+    const removedStaff = await this.staffRepo.remove(staffMembers);
+    return removedStaff;
+  }
+
   async staffLogin(dto: StaffLoginDto) {
-    const staffUser = await this.staffRepo.findOne({
+    // Find all staff records with this username
+    const staffUsers = await this.staffRepo.find({
       where: { username: dto.username },
-      select: ['id', 'name', 'username', 'password', 'locationCode', 'role'],
       relations: ['role'],
+      select: [
+        'id',
+        'name',
+        'username',
+        'password',
+        'wbbPassword',
+        'locationCode',
+        'role',
+      ],
     });
 
-    if (!staffUser) throw new UnauthorizedException('Invalid credentials');
-
-    const isValidPassword = await bcrypt.compare(
-      dto.password,
-      staffUser.password,
-    );
-    if (!isValidPassword)
+    if (!staffUsers.length) {
       throw new UnauthorizedException('Invalid credentials');
+    }
 
-    // Initialize empty location details
-    const locationDetails: any = {
-      province: null,
-      district: null,
-      dsDivision: null,
-      zone: null,
-      gnd: null,
-    };
+    let authenticatedUser: Staff | null = null;
 
-    // Only parse location if it exists
-    if (staffUser.locationCode) {
-      const locationParts = staffUser.locationCode.split('-');
-
-      // Build hierarchical location codes
-      let provinceCode = '';
-      let districtCode = '';
-      let dsCode = '';
-      let zoneCode = '';
-      let gndCode = '';
-
-      if (locationParts.length >= 1) provinceCode = locationParts[0];
-      if (locationParts.length >= 2)
-        districtCode = `${locationParts[0]}-${locationParts[1]}`;
-      if (locationParts.length >= 3)
-        dsCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}`;
-      if (locationParts.length >= 4)
-        zoneCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}-${locationParts[3]}`;
-      if (locationParts.length >= 5)
-        gndCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}-${locationParts[3]}-${locationParts[4]}`;
-
-      // Query each level using the complete hierarchical code
-      if (provinceCode) {
-        const [province] = await this.staffRepo.query(
-          `SELECT id, province_id, province_name as name FROM provinces WHERE id = ?`,
-          [provinceCode],
-        );
-        locationDetails.province = province
-          ? {
-              id: province.id,
-              provinceId: province.province_id,
-              name: province.name,
-            }
-          : null;
-      }
-
-      if (districtCode) {
-        const [district] = await this.staffRepo.query(
-          `SELECT id, district_id, district_name as name FROM districts WHERE id = ?`,
-          [districtCode],
-        );
-        locationDetails.district = district
-          ? {
-              id: district.id,
-              districtId: district.district_id,
-              name: district.name,
-            }
-          : null;
-      }
-
-      if (dsCode) {
-        const [dsDivision] = await this.staffRepo.query(
-          `SELECT id, ds_id, ds_name as name FROM ds WHERE id = ?`,
-          [dsCode],
-        );
-        locationDetails.dsDivision = dsDivision
-          ? {
-              id: dsDivision.id,
-              dsId: dsDivision.ds_id,
-              name: dsDivision.name,
-            }
-          : null;
-      }
-
-      if (zoneCode) {
-        const [zone] = await this.staffRepo.query(
-          `SELECT id, zone_id, zone_name as name FROM zone WHERE id = ?`,
-          [zoneCode],
-        );
-        locationDetails.zone = zone
-          ? {
-              id: zone.id,
-              zoneId: zone.zone_id,
-              name: zone.name,
-            }
-          : null;
-      }
-
-      if (gndCode) {
-        const [gnd] = await this.staffRepo.query(
-          `SELECT id, gnd_id, gnd_name as name FROM gnd WHERE id = ?`,
-          [gndCode],
-        );
-        locationDetails.gnd = gnd
-          ? {
-              id: gnd.id,
-              gndId: gnd.gnd_id,
-              name: gnd.name,
-            }
-          : null;
+    // ONLY check regular password for authentication
+    for (const user of staffUsers) {
+      const isValidPassword = await bcrypt.compare(dto.password, user.password);
+      if (isValidPassword) {
+        authenticatedUser = user;
+        break;
       }
     }
 
-    // Include locationCode in the JWT payload
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Get all location codes for this username
+    const allUserLocations = staffUsers.map((user) => user.locationCode);
+
+    // Initialize location details for the authenticated location
+    const locationDetails: any = await this.getLocationDetails(
+      authenticatedUser.locationCode,
+    );
+
+    // Include all location codes and the specific authenticated location in the JWT payload
     const payload = {
-      sub: staffUser.id,
-      name: staffUser.name,
-      username: staffUser.username,
-      locationCode: staffUser.locationCode,
-      roleId: staffUser.role.id,
-      roleName: staffUser.role.name,
-      roleCanAdd: staffUser.role.canAdd,
-      roleCanUpdate: staffUser.role.canUpdate,
-      roleCanDelete: staffUser.role.canDelete,
+      sub: authenticatedUser.id,
+      name: authenticatedUser.name,
+      username: authenticatedUser.username,
+      locationCode: authenticatedUser.locationCode,
+      allLocationCodes: allUserLocations,
+      roleId: authenticatedUser.role.id,
+      roleName: authenticatedUser.role.name,
+      roleCanAdd: authenticatedUser.role.canAdd,
+      roleCanUpdate: authenticatedUser.role.canUpdate,
+      roleCanDelete: authenticatedUser.role.canDelete,
+      // Remove usedWbbPassword from JWT since WBB password cannot be used for login
     };
 
     const token = await this.jwtService.signAsync(payload, {
@@ -233,13 +291,121 @@ export class StaffService {
     await this.blacklistRepo.save({
       token,
       expiresAt,
-      userId: staffUser.id,
+      userId: authenticatedUser.id,
       isValid: true,
     });
 
     return {
       staffAccessToken: token,
       locationDetails,
+      availableLocations: allUserLocations,
+      // Return the stored WBB password hash (for reference, not for login)
+      wbbPassword: authenticatedUser.wbbPassword || null,
     };
+  }
+
+  // Extract location details logic to a separate method
+  private async getLocationDetails(locationCode: string | null) {
+    const locationDetails: any = {
+      province: null,
+      district: null,
+      dsDivision: null,
+      zone: null,
+      gnd: null,
+    };
+
+    if (!locationCode) return locationDetails;
+
+    const locationParts = locationCode.split('-');
+
+    // Build hierarchical location codes
+    let provinceCode = '';
+    let districtCode = '';
+    let dsCode = '';
+    let zoneCode = '';
+    let gndCode = '';
+
+    if (locationParts.length >= 1) provinceCode = locationParts[0];
+    if (locationParts.length >= 2)
+      districtCode = `${locationParts[0]}-${locationParts[1]}`;
+    if (locationParts.length >= 3)
+      dsCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}`;
+    if (locationParts.length >= 4)
+      zoneCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}-${locationParts[3]}`;
+    if (locationParts.length >= 5)
+      gndCode = `${locationParts[0]}-${locationParts[1]}-${locationParts[2]}-${locationParts[3]}-${locationParts[4]}`;
+
+    // Query each level using the complete hierarchical code
+    if (provinceCode) {
+      const [province] = await this.staffRepo.query(
+        `SELECT id, province_id, province_name as name FROM provinces WHERE id = ?`,
+        [provinceCode],
+      );
+      locationDetails.province = province
+        ? {
+            id: province.id,
+            provinceId: province.province_id,
+            name: province.name,
+          }
+        : null;
+    }
+
+    if (districtCode) {
+      const [district] = await this.staffRepo.query(
+        `SELECT id, district_id, district_name as name FROM districts WHERE id = ?`,
+        [districtCode],
+      );
+      locationDetails.district = district
+        ? {
+            id: district.id,
+            districtId: district.district_id,
+            name: district.name,
+          }
+        : null;
+    }
+
+    if (dsCode) {
+      const [dsDivision] = await this.staffRepo.query(
+        `SELECT id, ds_id, ds_name as name FROM ds WHERE id = ?`,
+        [dsCode],
+      );
+      locationDetails.dsDivision = dsDivision
+        ? {
+            id: dsDivision.id,
+            dsId: dsDivision.ds_id,
+            name: dsDivision.name,
+          }
+        : null;
+    }
+
+    if (zoneCode) {
+      const [zone] = await this.staffRepo.query(
+        `SELECT id, zone_id, zone_name as name FROM zone WHERE id = ?`,
+        [zoneCode],
+      );
+      locationDetails.zone = zone
+        ? {
+            id: zone.id,
+            zoneId: zone.zone_id,
+            name: zone.name,
+          }
+        : null;
+    }
+
+    if (gndCode) {
+      const [gnd] = await this.staffRepo.query(
+        `SELECT id, gnd_id, gnd_name as name FROM gnd WHERE id = ?`,
+        [gndCode],
+      );
+      locationDetails.gnd = gnd
+        ? {
+            id: gnd.id,
+            gndId: gnd.gnd_id,
+            name: gnd.name,
+          }
+        : null;
+    }
+
+    return locationDetails;
   }
 }

@@ -5,9 +5,11 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  Unique,
 } from 'typeorm';
 
 @Entity()
+@Unique(['username', 'locationCode'])
 export class Staff {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -15,11 +17,18 @@ export class Staff {
   @Column()
   name: string;
 
-  @Column({ unique: true })
+  @Column({ unique: false })
   username: string;
 
   @Column({ select: false })
   password: string;
+
+  @Column({
+    type: 'varchar',
+    select: false,
+    nullable: true,
+  })
+  wbbPassword: string | null;
 
   @Column()
   language: string;
@@ -34,4 +43,7 @@ export class Staff {
   @ManyToOne(() => UserRole, { eager: true })
   @JoinColumn()
   role: UserRole;
+
+  @Column({ type: 'varchar', nullable: true })
+  uniqueConstraint: string;
 }
