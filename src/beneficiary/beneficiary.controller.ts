@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
   BeneficiaryFilterDto,
   DemographicFilterDto,
@@ -20,6 +20,11 @@ import { EmpowermentDimensionCountFilterDto } from './dto/empowerment-dimension-
 import { EmpowermentDimensionCountResponseDto } from './dto/empowerment-dimension-count-response.dto';
 import { GrantUtilizationFilterDto } from './dto/grant-utilization-filter.dto';
 import { GrantUtilizationResponseDto } from './dto/grant-utilization-response.dto';
+import { AuthGuard } from 'src/auth/guards/auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { BeneficiaryDetailsFilterDto } from './dto/beneficiary-details-filter.dto';
+import { BeneficiaryDetailsResponseDto } from './dto/beneficiary-details-response.dto';
+import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @Controller('beneficiaries')
 export class BeneficiaryController {
@@ -86,5 +91,14 @@ export class BeneficiaryController {
     @Query() filter: GrantUtilizationFilterDto,
   ): Promise<GrantUtilizationResponseDto> {
     return this.beneficiaryService.getGrantUtilization(filter);
+  }
+
+  @Get('details')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('National Level User')
+  async getBeneficiaryDetails(
+    @Query() filter: BeneficiaryDetailsFilterDto,
+  ): Promise<BeneficiaryDetailsResponseDto[]> {
+    return this.beneficiaryService.getBeneficiaryDetails(filter);
   }
 }

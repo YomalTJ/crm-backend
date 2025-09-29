@@ -25,6 +25,8 @@ import { EmpowermentDimensionCountResponseDto } from './dto/empowerment-dimensio
 import { EmpowermentDimensionCountFilterDto } from './dto/empowerment-dimension-count-filter.dto';
 import { GrantUtilizationFilterDto } from './dto/grant-utilization-filter.dto';
 import { GrantUtilizationResponseDto } from './dto/grant-utilization-response.dto';
+import { BeneficiaryDetailsFilterDto } from './dto/beneficiary-details-filter.dto';
+import { BeneficiaryDetailsResponseDto } from './dto/beneficiary-details-response.dto';
 
 @Injectable()
 export class BeneficiaryService {
@@ -1444,5 +1446,598 @@ export class BeneficiaryService {
         totalAmount: parseFloat(result.total_amount) || 0,
       },
     };
+  }
+
+  private safeParseJson(jsonString: any): any {
+    if (!jsonString) {
+      return undefined;
+    }
+
+    // If it's already an object/array, return it
+    if (typeof jsonString === 'object') {
+      return jsonString;
+    }
+
+    // If it's a string, try to parse it
+    if (typeof jsonString === 'string') {
+      try {
+        // Trim the string and check if it's valid JSON
+        const trimmed = jsonString.trim();
+        if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') {
+          return undefined;
+        }
+        return JSON.parse(trimmed);
+      } catch (error) {
+        console.warn(
+          'Failed to parse JSON, returning raw string:',
+          jsonString,
+          error,
+        );
+        // Return the original string if parsing fails
+        return jsonString;
+      }
+    }
+
+    return undefined;
+  }
+
+  private async getRelatedNames(
+    ids: string[],
+    tableName: string,
+    idColumn: string,
+  ): Promise<any[]> {
+    if (!ids || ids.length === 0) {
+      return [];
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const query = `
+    SELECT 
+      ${idColumn} as id,
+      nameEnglish,
+      nameSinhala,
+      nameTamil
+    FROM ${tableName}
+    WHERE ${idColumn} IN (${placeholders})
+  `;
+
+    const results = await this.entityManager.query(query, ids);
+    return results.map((r) => ({
+      id: r.id,
+      nameEnglish: r.nameEnglish,
+      nameSinhala: r.nameSinhala,
+      nameTamil: r.nameTamil,
+    }));
+  }
+
+  async getBeneficiaryDetails(
+    filter: BeneficiaryDetailsFilterDto,
+  ): Promise<BeneficiaryDetailsResponseDto[]> {
+    let query = `
+    SELECT 
+      sf.id as id,
+      sf.aswasumaHouseholdNo as aswasumaHouseholdNo,
+      sf.nic as nic,
+      sf.beneficiaryName as beneficiaryName,
+      sf.beneficiaryAge as beneficiaryAge,
+      sf.beneficiaryGender as beneficiaryGender,
+      sf.address as address,
+      sf.mobilePhone as mobilePhone,
+      sf.telephone as telephone,
+      sf.projectOwnerName as projectOwnerName,
+      sf.projectOwnerAge as projectOwnerAge,
+      sf.projectOwnerGender as projectOwnerGender,
+      sf.hasDisability as hasDisability,
+      sf.hasConsentedToEmpowerment as hasConsentedToEmpowerment,
+      sf.isImpactEvaluation as isImpactEvaluation,
+      sf.consentGivenAt as consentGivenAt,
+      sf.mainProgram as mainProgram,
+      sf.areaClassification as areaClassification,
+      sf.monthlySaving as monthlySaving,
+      sf.savingAmount as savingAmount,
+      sf.hasOtherGovernmentSubsidy as hasOtherGovernmentSubsidy,
+      sf.otherGovernmentInstitution as otherGovernmentInstitution,
+      sf.otherSubsidyAmount as otherSubsidyAmount,
+      sf.createdAt as createdAt,
+      
+      -- Demographics
+      COALESCE(sf.maleBelow16, 0) as maleBelow16,
+      COALESCE(sf.femaleBelow16, 0) as femaleBelow16,
+      COALESCE(sf.male16To24, 0) as male16To24,
+      COALESCE(sf.female16To24, 0) as female16To24,
+      COALESCE(sf.male25To45, 0) as male25To45,
+      COALESCE(sf.female25To45, 0) as female25To45,
+      COALESCE(sf.male46To60, 0) as male46To60,
+      COALESCE(sf.female46To60, 0) as female46To60,
+      COALESCE(sf.maleAbove60, 0) as maleAbove60,
+      COALESCE(sf.femaleAbove60, 0) as femaleAbove60,
+      
+      -- Additional fields
+      sf.otherOccupation as otherOccupation,
+      sf.otherProject as otherProject,
+      sf.otherJobField as otherJobField,
+      sf.resource_id as resource_id,
+      sf.health_indicator_id as health_indicator_id,
+      sf.domestic_dynamic_id as domestic_dynamic_id,
+      sf.community_participation_id as community_participation_id,
+      sf.housing_service_id as housing_service_id,
+      
+      -- Child Details
+      sf.childName as childName,
+      sf.childAge as childAge,
+      sf.childGender as childGender,
+      
+      -- Bank Details
+      sf.commercialBankAccountName as commercialBankAccountName,
+      sf.commercialBankAccountNumber as commercialBankAccountNumber,
+      sf.commercialBankName as commercialBankName,
+      sf.commercialBankBranch as commercialBankBranch,
+      sf.samurdhiBankAccountName as samurdhiBankAccountName,
+      sf.samurdhiBankAccountNumber as samurdhiBankAccountNumber,
+      sf.samurdhiBankName as samurdhiBankName,
+      sf.samurdhiBankAccountType as samurdhiBankAccountType,
+      sf.wantsAswesumaBankTransfer as wantsAswesumaBankTransfer,
+      sf.otherBankName as otherBankName,
+      sf.otherBankBranch as otherBankBranch,
+      sf.otherBankAccountHolder as otherBankAccountHolder,
+      sf.otherBankAccountNumber as otherBankAccountNumber,
+
+      -- Location
+      d.district_id as district_id,
+      d.district_name as district_name,
+      ds.ds_id as ds_id,
+      ds.ds_name as ds_name,
+      z.zone_id as zone_id,
+      z.zone_name as zone_name,
+      g.gnd_id as gnd_id,
+      g.gnd_name as gnd_name,
+
+      -- Beneficiary Type
+      bs.beneficiary_type_id as beneficiary_type_id,
+      bs.nameEnglish as beneficiary_name_english,
+      bs.nameSinhala as beneficiary_name_sinhala,
+      bs.nameTamil as beneficiary_name_tamil,
+
+      -- Disability
+      dis.disability_id as disability_id,
+      dis.name_en as disability_name_en,
+      dis.name_si as disability_name_si,
+      dis.name_ta as disability_name_ta,
+
+      -- Current Employment
+      ce.employment_id as employment_id,
+      ce.nameEnglish as employment_name_english,
+      ce.nameSinhala as employment_name_sinhala,
+      ce.nameTamil as employment_name_tamil,
+
+      -- Samurdhi Subsidy
+      ss.subsisdy_id as subsisdy_id,
+      ss.amount as subsidy_amount,
+
+      -- Aswasuma Category
+      ac.aswesuma_cat_id as aswesuma_cat_id,
+      ac.nameEnglish as aswasuma_name_english,
+      ac.nameSinhala as aswasuma_name_sinhala,
+      ac.nameTamil as aswasuma_name_tamil,
+
+      -- Empowerment Dimension
+      ed.empowerment_dimension_id as empowerment_dimension_id,
+      ed.nameEnglish as empowerment_name_english,
+      ed.nameSinhala as empowerment_name_sinhala,
+      ed.nameTamil as empowerment_name_tamil,
+
+      -- Refusal Reason
+      err.id as refusal_reason_id,
+      err.reason_si as refusal_reason_si,
+      err.reason_en as refusal_reason_en,
+      err.reason_ta as refusal_reason_ta,
+
+      -- Livelihood
+      l.id as livelihood_id,
+      l.english_name as livelihood_english_name,
+      l.sinhala_name as livelihood_sinhala_name,
+      l.tamil_name as livelihood_tamil_name,
+
+      -- Project Type
+      pt.project_type_id as project_type_id,
+      pt.nameEnglish as project_type_english,
+      pt.nameSinhala as project_type_sinhala,
+      pt.nameTamil as project_type_tamil,
+
+      -- Job Field
+      jf.job_field_id as job_field_id,
+      jf.nameEnglish as job_field_name_english,
+      jf.nameSinhala as job_field_name_sinhala,
+      jf.nameTamil as job_field_name_tamil,
+
+      -- Created By Staff
+      s.id as staff_id,
+      s.name as staffName,
+      ur.name as role_name
+
+    FROM samurdhi_family sf
+    LEFT JOIN districts d ON sf.district_id = d.district_id
+    LEFT JOIN ds ds ON sf.ds_id = ds.ds_id
+    LEFT JOIN zone z ON sf.zone_id = z.zone_id
+    LEFT JOIN gnd g ON sf.gnd_id = g.gnd_id
+    LEFT JOIN beneficiary_status bs ON sf.beneficiary_type_id = bs.beneficiary_type_id
+    LEFT JOIN disability dis ON sf.disability_id = dis.disability_id
+    LEFT JOIN current_employment ce ON sf.employment_id = ce.employment_id
+    LEFT JOIN samurdhi_subsisdy ss ON sf.subsisdy_id = ss.subsisdy_id
+    LEFT JOIN aswasuma_category ac ON sf.aswesuma_cat_id = ac.aswesuma_cat_id
+    LEFT JOIN empowerment_dimension ed ON sf.empowerment_dimension_id = ed.empowerment_dimension_id
+    LEFT JOIN empowerment_refusal_reasons err ON sf.refusal_reason_id = err.id
+    LEFT JOIN livelihoods l ON sf.livelihood_id = l.id
+    LEFT JOIN project_type pt ON sf.project_type_id = pt.project_type_id
+    LEFT JOIN job_field jf ON sf.job_field_id = jf.job_field_id
+    LEFT JOIN staff s ON sf.created_by = s.id
+    LEFT JOIN user_role ur ON s.roleId = ur.id
+    WHERE 1=1
+  `;
+
+    const paramValues: any[] = [];
+
+    if (filter.district_id) {
+      query += ' AND sf.district_id = ?';
+      paramValues.push(filter.district_id);
+    }
+
+    if (filter.ds_id) {
+      query += ' AND sf.ds_id = ?';
+      paramValues.push(filter.ds_id);
+    }
+
+    if (filter.zone_id) {
+      query += ' AND sf.zone_id = ?';
+      paramValues.push(filter.zone_id);
+    }
+
+    if (filter.gnd_id) {
+      query += ' AND sf.gnd_id = ?';
+      paramValues.push(filter.gnd_id);
+    }
+
+    if (filter.mainProgram) {
+      query += ' AND sf.mainProgram = ?';
+      paramValues.push(filter.mainProgram);
+    }
+
+    if (filter.empowerment_dimension_id) {
+      query += ' AND sf.empowerment_dimension_id = ?';
+      paramValues.push(filter.empowerment_dimension_id);
+    }
+
+    query += ' ORDER BY sf.createdAt DESC';
+
+    const results = await this.entityManager.query(query, paramValues);
+
+    return Promise.all(
+      results.map(async (result) => {
+        // Parse the JSON arrays
+        const resourceIds = this.safeParseJson(result.resource_id) || [];
+        const healthIndicatorIds =
+          this.safeParseJson(result.health_indicator_id) || [];
+        const domesticDynamicIds =
+          this.safeParseJson(result.domestic_dynamic_id) || [];
+        const communityParticipationIds =
+          this.safeParseJson(result.community_participation_id) || [];
+        const housingServiceIds =
+          this.safeParseJson(result.housing_service_id) || [];
+
+        // Fetch related names
+        const [
+          resources,
+          healthIndicators,
+          domesticDynamics,
+          communityParticipations,
+          housingServices,
+        ] = await Promise.all([
+          Array.isArray(resourceIds) && resourceIds.length > 0
+            ? this.getRelatedNames(
+                resourceIds,
+                'resource_needed',
+                'resource_id',
+              )
+            : [],
+          Array.isArray(healthIndicatorIds) && healthIndicatorIds.length > 0
+            ? this.getRelatedNames(
+                healthIndicatorIds,
+                'health_indicator',
+                'health_indicator_id',
+              )
+            : [],
+          Array.isArray(domesticDynamicIds) && domesticDynamicIds.length > 0
+            ? this.getRelatedNames(
+                domesticDynamicIds,
+                'domestic_dynamic',
+                'domestic_dynamic_id',
+              )
+            : [],
+          Array.isArray(communityParticipationIds) &&
+          communityParticipationIds.length > 0
+            ? this.getRelatedNames(
+                communityParticipationIds,
+                'community_participation',
+                'community_participation_id',
+              )
+            : [],
+          Array.isArray(housingServiceIds) && housingServiceIds.length > 0
+            ? this.getRelatedNames(
+                housingServiceIds,
+                'housing_basic_service',
+                'housing_service_id',
+              )
+            : [],
+        ]);
+
+        return {
+          id: result.id,
+          aswasumaHouseholdNo: result.aswasumaHouseholdNo,
+          nic: result.nic,
+          beneficiaryName: result.beneficiaryName,
+          beneficiaryAge: result.beneficiaryAge,
+          beneficiaryGender: result.beneficiaryGender,
+          address: result.address,
+          mobilePhone: result.mobilePhone,
+          telephone: result.telephone,
+          projectOwnerName: result.projectOwnerName,
+          projectOwnerAge: result.projectOwnerAge,
+          projectOwnerGender: result.projectOwnerGender,
+          hasDisability: result.hasDisability,
+          hasConsentedToEmpowerment: result.hasConsentedToEmpowerment,
+          isImpactEvaluation: result.isImpactEvaluation,
+          consentGivenAt: result.consentGivenAt,
+          mainProgram: result.mainProgram,
+          areaClassification: result.areaClassification,
+          monthlySaving: result.monthlySaving,
+          savingAmount: result.savingAmount,
+          hasOtherGovernmentSubsidy: result.hasOtherGovernmentSubsidy,
+          otherGovernmentInstitution: result.otherGovernmentInstitution,
+          otherSubsidyAmount: result.otherSubsidyAmount,
+          createdAt: result.createdAt,
+
+          location: {
+            district: result.district_id
+              ? {
+                  district_id: result.district_id,
+                  district_name: result.district_name,
+                }
+              : undefined,
+            ds: result.ds_id
+              ? {
+                  ds_id: result.ds_id,
+                  ds_name: result.ds_name,
+                }
+              : undefined,
+            zone: result.zone_id
+              ? {
+                  zone_id: result.zone_id,
+                  zone_name: result.zone_name,
+                }
+              : undefined,
+            gnd: result.gnd_id
+              ? {
+                  gnd_id: result.gnd_id,
+                  gnd_name: result.gnd_name,
+                }
+              : undefined,
+          },
+
+          demographics: {
+            totalFamilyMembers:
+              result.maleBelow16 +
+              result.femaleBelow16 +
+              result.male16To24 +
+              result.female16To24 +
+              result.male25To45 +
+              result.female25To45 +
+              result.male46To60 +
+              result.female46To60 +
+              result.maleAbove60 +
+              result.femaleAbove60,
+            totalMale:
+              result.maleBelow16 +
+              result.male16To24 +
+              result.male25To45 +
+              result.male46To60 +
+              result.maleAbove60,
+            totalFemale:
+              result.femaleBelow16 +
+              result.female16To24 +
+              result.female25To45 +
+              result.female46To60 +
+              result.femaleAbove60,
+            ageRanges: {
+              below16: {
+                male: result.maleBelow16,
+                female: result.femaleBelow16,
+                total: result.maleBelow16 + result.femaleBelow16,
+              },
+              age16To24: {
+                male: result.male16To24,
+                female: result.female16To24,
+                total: result.male16To24 + result.female16To24,
+              },
+              age25To45: {
+                male: result.male25To45,
+                female: result.female25To45,
+                total: result.male25To45 + result.female25To45,
+              },
+              age46To60: {
+                male: result.male46To60,
+                female: result.female46To60,
+                total: result.male46To60 + result.female46To60,
+              },
+              above60: {
+                male: result.maleAbove60,
+                female: result.femaleAbove60,
+                total: result.maleAbove60 + result.femaleAbove60,
+              },
+            },
+          },
+
+          beneficiaryType: result.beneficiary_type_id
+            ? {
+                beneficiary_type_id: result.beneficiary_type_id,
+                nameEnglish: result.beneficiary_name_english,
+                nameSinhala: result.beneficiary_name_sinhala,
+                nameTamil: result.beneficiary_name_tamil,
+              }
+            : undefined,
+
+          disability: result.disability_id
+            ? {
+                disability_id: result.disability_id,
+                nameEN: result.disability_name_en,
+                nameSi: result.disability_name_si,
+                nameTa: result.disability_name_ta,
+              }
+            : undefined,
+
+          currentEmployment: result.employment_id
+            ? {
+                employment_id: result.employment_id,
+                nameEnglish: result.employment_name_english,
+                nameSinhala: result.employment_name_sinhala,
+                nameTamil: result.employment_name_tamil,
+              }
+            : undefined,
+
+          samurdhiSubsidy: result.subsisdy_id
+            ? {
+                subsisdy_id: result.subsisdy_id,
+                amount: result.subsidy_amount,
+              }
+            : undefined,
+
+          aswasumaCategory: result.aswesuma_cat_id
+            ? {
+                aswesuma_cat_id: result.aswesuma_cat_id,
+                nameEnglish: result.aswasuma_name_english,
+                nameSinhala: result.aswasuma_name_sinhala,
+                nameTamil: result.aswasuma_name_tamil,
+              }
+            : undefined,
+
+          empowermentDimension: result.empowerment_dimension_id
+            ? {
+                empowerment_dimension_id: result.empowerment_dimension_id,
+                nameEnglish: result.empowerment_name_english,
+                nameSinhala: result.empowerment_name_sinhala,
+                nameTamil: result.empowerment_name_tamil,
+              }
+            : undefined,
+
+          refusalReason: result.refusal_reason_id
+            ? {
+                id: result.refusal_reason_id,
+                reason_si: result.refusal_reason_si,
+                reason_en: result.refusal_reason_en,
+                reason_ta: result.refusal_reason_ta,
+              }
+            : undefined,
+
+          livelihood: result.livelihood_id
+            ? {
+                id: result.livelihood_id,
+                english_name: result.livelihood_english_name,
+                sinhala_name: result.livelihood_sinhala_name,
+                tamil_name: result.livelihood_tamil_name,
+              }
+            : undefined,
+
+          projectType: result.project_type_id
+            ? {
+                project_type_id: result.project_type_id,
+                nameEnglish: result.project_type_english,
+                nameSinhala: result.project_type_sinhala,
+                nameTamil: result.project_type_tamil,
+              }
+            : undefined,
+
+          jobField: result.job_field_id
+            ? {
+                job_field_id: result.job_field_id,
+                nameEnglish: result.job_field_name_english,
+                nameSinhala: result.job_field_name_sinhala,
+                nameTamil: result.job_field_name_tamil,
+              }
+            : undefined,
+
+          bankDetails: {
+            commercial:
+              result.commercialBankAccountName ||
+              result.commercialBankAccountNumber ||
+              result.commercialBankName ||
+              result.commercialBankBranch
+                ? {
+                    accountName: result.commercialBankAccountName,
+                    accountNumber: result.commercialBankAccountNumber,
+                    bankName: result.commercialBankName,
+                    branch: result.commercialBankBranch,
+                  }
+                : undefined,
+            samurdhi:
+              result.samurdhiBankAccountName ||
+              result.samurdhiBankAccountNumber ||
+              result.samurdhiBankName ||
+              result.samurdhiBankAccountType
+                ? {
+                    accountName: result.samurdhiBankAccountName,
+                    accountNumber: result.samurdhiBankAccountNumber,
+                    bankName: result.samurdhiBankName,
+                    accountType: result.samurdhiBankAccountType,
+                  }
+                : undefined,
+            other:
+              result.otherBankName ||
+              result.otherBankBranch ||
+              result.otherBankAccountHolder ||
+              result.otherBankAccountNumber
+                ? {
+                    bankName: result.otherBankName,
+                    branch: result.otherBankBranch,
+                    accountHolder: result.otherBankAccountHolder,
+                    accountNumber: result.otherBankAccountNumber,
+                  }
+                : undefined,
+            wantsAswesumaBankTransfer: result.wantsAswesumaBankTransfer,
+          },
+
+          childDetails:
+            result.childName || result.childAge || result.childGender
+              ? {
+                  childName: result.childName,
+                  childAge: result.childAge,
+                  childGender: result.childGender,
+                }
+              : undefined,
+
+          otherOccupation: result.otherOccupation,
+          otherProject: result.otherProject,
+          otherJobField: result.otherJobField,
+
+          resources: resources.length > 0 ? resources : undefined,
+          healthIndicators:
+            healthIndicators.length > 0 ? healthIndicators : undefined,
+          domesticDynamics:
+            domesticDynamics.length > 0 ? domesticDynamics : undefined,
+          communityParticipations:
+            communityParticipations.length > 0
+              ? communityParticipations
+              : undefined,
+          housingServices:
+            housingServices.length > 0 ? housingServices : undefined,
+
+          createdBy: result.staff_id
+            ? {
+                staff_id: result.staff_id,
+                staffName: result.staffName,
+                role: result.role_name,
+              }
+            : undefined,
+        };
+      }),
+    );
   }
 }

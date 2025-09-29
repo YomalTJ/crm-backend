@@ -6,10 +6,12 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
 
 @Entity()
-@Unique(['username', 'locationCode'])
+@Unique(['username'])
 export class Staff {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -17,8 +19,11 @@ export class Staff {
   @Column()
   name: string;
 
-  @Column({ unique: false })
+  @Column({ unique: true })
   username: string;
+
+  @Column()
+  nic: string;
 
   @Column({ select: false })
   password: string;
@@ -46,4 +51,16 @@ export class Staff {
 
   @Column({ type: 'varchar', nullable: true })
   uniqueConstraint: string;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  generateUsername() {
+    // For national level users (no location code), keep username as is
+    if (!this.locationCode || this.locationCode.trim() === '') {
+      return;
+    }
+
+    // For other users, generate username from location code without "-"
+    this.username = this.locationCode.replace(/-/g, '');
+  }
 }

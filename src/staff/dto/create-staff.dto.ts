@@ -14,7 +14,11 @@ export class CreateStaffDto {
   name: string;
 
   @IsString()
-  username: string;
+  @IsOptional()
+  username?: string;
+
+  @IsString()
+  nic: string;
 
   @IsEnum(['ENGLISH', 'TAMIL', 'SINHALA'])
   language: string;
@@ -41,5 +45,5 @@ export class CreateStaffDto {
   @IsArray()
   @IsOptional()
   @IsString({ each: true })
-  additionalLocationCodes?: string[]; // For creating multiple records in one call
+  additionalLocationCodes?: string[];
 }

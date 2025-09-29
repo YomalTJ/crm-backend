@@ -43,32 +43,40 @@ export class StaffService {
       );
     }
 
-    // Check if username + locationCode combination already exists
-    const existing = await this.staffRepo.findOne({
-      where: {
-        username: dto.username,
-        locationCode: dto.locationCode,
-      },
-    });
+    // Check if username already exists (globally unique)
+    if (dto.username) {
+      const existingUsername = await this.staffRepo.findOne({
+        where: { username: dto.username },
+      });
 
-    if (existing) {
+      if (existingUsername) {
+        throw new BadRequestException('Username already exists');
+      }
+    }
+
+    // For national level users, username is required
+    const role = await this.roleRepo.findOneBy({ id: dto.userRoleId });
+    if (!role) throw new NotFoundException('User role not found');
+
+    if (role.name === 'National Level User' && !dto.username) {
       throw new BadRequestException(
-        'Staff member with this username already exists for the specified location',
+        'Username is required for National Level Users',
       );
     }
 
-    // Hash the regular password (for your system authentication)
+    // Hash the regular password
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    // Store WBB password as plain text (or encrypt it, but DON'T hash it)
+    // Store WBB password as plain text
     const wbbPassword = dto.wbbPassword || null;
 
     const staff = this.staffRepo.create({
       name: dto.name,
+      nic: dto.nic,
       username: dto.username,
       language: dto.language,
       password: hashedPassword,
-      wbbPassword: wbbPassword, // Store directly without hashing
+      wbbPassword: wbbPassword,
       locationCode: dto.locationCode,
       role: { id: dto.userRoleId },
       addedBy: { id: userId } as Staff,
@@ -78,15 +86,12 @@ export class StaffService {
       return await this.staffRepo.save(staff);
     } catch (error) {
       if (error.code === 'ER_DUP_ENTRY') {
-        throw new BadRequestException(
-          'Staff member with this username already exists for the specified location',
-        );
+        throw new BadRequestException('Username already exists');
       }
       throw error;
     }
   }
 
-  // New method to create multiple staff records for different locations
   async createMultiple(dtos: CreateStaffDto[], userId: string) {
     const creatingUser = await this.staffRepo.findOne({
       where: { id: userId },
@@ -104,32 +109,52 @@ export class StaffService {
 
     for (const dto of dtos) {
       try {
-        // Check if username + locationCode combination already exists
-        const existing = await this.staffRepo.findOne({
-          where: {
-            username: dto.username,
-            locationCode: dto.locationCode,
-          },
-        });
-
-        if (existing) {
-          throw new BadRequestException(
-            `Staff member with username ${dto.username} already exists for location ${dto.locationCode}`,
+        // Check if username is provided for national level users
+        const role = await this.roleRepo.findOneBy({ id: dto.userRoleId });
+        if (!role) {
+          throw new NotFoundException(
+            `User role not found for ID: ${dto.userRoleId}`,
           );
         }
 
+        if (role.name === 'National Level User' && !dto.username) {
+          throw new BadRequestException(
+            'Username is required for National Level Users',
+          );
+        }
+
+        // Generate username for non-national users if not provided
+        let finalUsername = dto.username;
+        if (role.name !== 'National Level User' && dto.locationCode) {
+          finalUsername = dto.locationCode.replace(/-/g, '');
+        }
+
+        // Check if username already exists (globally unique)
+        if (finalUsername) {
+          const existing = await this.staffRepo.findOne({
+            where: { username: finalUsername },
+          });
+
+          if (existing) {
+            throw new BadRequestException(
+              `Username ${finalUsername} already exists`,
+            );
+          }
+        }
+
+        // Hash the regular password
         const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-        const hashedWbbPassword = dto.wbbPassword
-          ? await bcrypt.hash(dto.wbbPassword, 10)
-          : null;
+        // Store WBB password as plain text (or encrypt it, but DON'T hash it)
+        const wbbPassword = dto.wbbPassword || null;
 
         const staff = this.staffRepo.create({
           name: dto.name,
-          username: dto.username,
+          nic: dto.nic,
+          username: finalUsername,
           language: dto.language,
           password: hashedPassword,
-          wbbPassword: hashedWbbPassword,
+          wbbPassword: wbbPassword,
           locationCode: dto.locationCode,
           role: { id: dto.userRoleId },
           addedBy: { id: userId } as Staff,
@@ -138,7 +163,14 @@ export class StaffService {
         const savedStaff = await this.staffRepo.save(staff);
         results.push(savedStaff);
       } catch (error) {
-        results.push({ error: error.message, dto });
+        results.push({
+          error: error.message,
+          dto: {
+            ...dto,
+            password: '***', // Hide password in error response
+            wbbPassword: dto.wbbPassword ? '***' : undefined,
+          },
+        });
       }
     }
 
