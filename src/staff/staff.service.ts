@@ -262,6 +262,7 @@ export class StaffService {
       select: [
         'id',
         'name',
+        'nic',
         'username',
         'password',
         'wbbPassword',
@@ -301,6 +302,7 @@ export class StaffService {
     const payload = {
       sub: authenticatedUser.id,
       name: authenticatedUser.name,
+      nic: authenticatedUser.nic,
       username: authenticatedUser.username,
       locationCode: authenticatedUser.locationCode,
       allLocationCodes: allUserLocations,
@@ -333,6 +335,7 @@ export class StaffService {
       availableLocations: allUserLocations,
       // Return the stored WBB password hash (for reference, not for login)
       wbbPassword: authenticatedUser.wbbPassword || null,
+      nic: authenticatedUser.nic
     };
   }
 
