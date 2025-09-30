@@ -139,9 +139,9 @@ export class UpdateSamurdhiFamilyDto {
   @IsOptional() @IsString() project_type_id?: string;
   @IsOptional() @IsString() otherProject?: string;
 
-  @IsOptional() @IsString() childName?: string;
-  @IsOptional() @IsNumber() childAge?: number;
-  @IsOptional() @IsString() childGender?: string;
+  @IsOptional() @IsString() childName?: string | null;
+  @IsOptional() @IsNumber() childAge?: number | null;
+  @IsOptional() @IsString() childGender?: string | null;
   @IsOptional() @IsString() job_field_id?: string;
   @IsOptional() @IsString() otherJobField?: string;
 

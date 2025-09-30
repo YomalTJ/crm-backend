@@ -192,14 +192,14 @@ export class SamurdhiFamily {
   otherProject: string;
 
   // For Employment Facilitation
-  @Column({ nullable: true })
-  childName: string;
+  @Column({ nullable: true, type: 'varchar' })
+  childName: string | null;
 
-  @Column({ nullable: true })
-  childAge: number;
+  @Column({ nullable: true, type: 'int' })
+  childAge: number | null;
 
-  @Column({ nullable: true })
-  childGender: string;
+  @Column({ nullable: true, type: 'varchar' })
+  childGender: string | null;
 
   @ManyToOne(() => JobField, { nullable: true })
   @JoinColumn({ name: 'job_field_id' })
