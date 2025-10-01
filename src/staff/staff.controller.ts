@@ -21,6 +21,7 @@ import { StaffLoginDto } from './dto/staff-login.dto';
 import { AuthGuard } from 'src/auth/guards/auth.guard';
 import { AuthService } from 'src/auth/auth.service';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('staff')
 export class StaffController {
@@ -118,5 +119,17 @@ export class StaffController {
     });
 
     return { message: 'Logged out successfully' };
+  }
+
+  @Patch('change-password/:id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @SetMetadata('roles', ['District Level User'])
+  changePassword(
+    @Param('id') id: string,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+  ) {
+    const userId = req['user'].userId;
+    return this.staffService.changePassword(id, dto, userId);
   }
 }

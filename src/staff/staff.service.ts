@@ -9,7 +9,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Staff } from './entities/staff.entity';
-import { Not, Repository } from 'typeorm';
+import { Like, Not, Repository } from 'typeorm';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { UserRole } from 'src/user-role/entities/user-role.entity';
@@ -17,6 +17,7 @@ import { StaffLoginDto } from './dto/staff-login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { BlacklistedToken } from 'src/auth/entities/blacklisted-token.entity';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class StaffService {
@@ -335,7 +336,7 @@ export class StaffService {
       availableLocations: allUserLocations,
       // Return the stored WBB password hash (for reference, not for login)
       wbbPassword: authenticatedUser.wbbPassword || null,
-      nic: authenticatedUser.nic
+      nic: authenticatedUser.nic,
     };
   }
 
@@ -442,5 +443,102 @@ export class StaffService {
     }
 
     return locationDetails;
+  }
+
+  async changePassword(id: string, dto: ChangePasswordDto, userId: string) {
+    // Get the district level user who is making the request
+    const districtLevelUser = await this.staffRepo.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    if (
+      !districtLevelUser ||
+      districtLevelUser.role.name !== 'District Level User'
+    ) {
+      throw new ForbiddenException(
+        'Only District Level Users can change passwords',
+      );
+    }
+
+    // Find the target user by ID (primary key) - Changed from NIC
+    const targetUser = await this.staffRepo.findOne({
+      where: { id }, // Changed from { nic } to { id }
+      relations: ['role'],
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found with the provided ID'); // Updated message
+    }
+
+    // Check if target user is within the district level user's jurisdiction
+    const canChangePassword = await this.canChangePasswordForUser(
+      districtLevelUser,
+      targetUser,
+    );
+
+    if (!canChangePassword) {
+      throw new ForbiddenException(
+        'You can only change passwords for users in your district jurisdiction',
+      );
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    // Update the password
+    targetUser.password = hashedPassword;
+
+    try {
+      await this.staffRepo.save(targetUser);
+      return {
+        message: 'Password changed successfully',
+        user: {
+          id: targetUser.id, // Include ID in response
+          name: targetUser.name,
+          nic: targetUser.nic,
+          role: targetUser.role.name,
+          locationCode: targetUser.locationCode,
+        },
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to change password');
+    }
+  }
+
+  private async canChangePasswordForUser(
+    districtLevelUser: Staff,
+    targetUser: Staff,
+  ): Promise<boolean> {
+    const allowedRoles = [
+      'District Level User',
+      'Divisional Level User',
+      'Bank/Zone Level User',
+      'GN Level User',
+    ];
+
+    // Check if target user role is allowed
+    if (!allowedRoles.includes(targetUser.role.name)) {
+      return false;
+    }
+
+    // Extract district code from location codes
+    const districtUserDistrictCode = this.extractDistrictCode(
+      districtLevelUser.locationCode,
+    );
+    const targetUserDistrictCode = this.extractDistrictCode(
+      targetUser.locationCode,
+    );
+
+    // Check if both users belong to the same district
+    return districtUserDistrictCode === targetUserDistrictCode;
+  }
+
+  private extractDistrictCode(locationCode: string | null): string | null {
+    if (!locationCode) return null;
+
+    const parts = locationCode.split('-');
+    // District code is first two parts (e.g., "1-1" from "1-1-1")
+    return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : null;
   }
 }
