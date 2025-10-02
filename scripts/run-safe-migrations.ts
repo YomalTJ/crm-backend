@@ -197,6 +197,31 @@ class SafeMigrationRunner {
           }
           console.log(`➖ Dropping column: ${tableName}.${columnName}`);
         }
+      } else if (
+        queryUpper.includes('ALTER TABLE') &&
+        queryUpper.includes('DROP FOREIGN KEY')
+      ) {
+        const constraintMatch = query.match(/DROP FOREIGN KEY `?(\w+)`?/i);
+        if (constraintMatch) {
+          const tableMatch = query.match(/ALTER TABLE `?(\w+)`?/i);
+          if (tableMatch) {
+            const tableName = tableMatch[1];
+            const constraintName = constraintMatch[1];
+
+            const fkExists = await checkForeignKeyExists(
+              this.queryRunner,
+              tableName,
+              constraintName,
+            );
+            if (!fkExists) {
+              console.log(
+                `⏭️  Foreign key ${constraintName} doesn't exist, skipping drop...`,
+              );
+              return;
+            }
+            console.log(`➖ Dropping foreign key: ${constraintName}`);
+          }
+        }
       }
 
       // Execute the query
@@ -262,6 +287,25 @@ class SafeMigrationRunner {
       console.error(`📋 Query was: ${cleanQuery.substring(0, 200)}...`);
       throw error;
     }
+  }
+}
+
+async function checkForeignKeyExists(
+  queryRunner: QueryRunner,
+  tableName: string,
+  constraintName: string,
+): Promise<boolean> {
+  try {
+    const result = await queryRunner.manager.query(
+      `SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+       WHERE TABLE_SCHEMA = DATABASE() 
+       AND TABLE_NAME = ? 
+       AND CONSTRAINT_NAME = ?`,
+      [tableName, constraintName],
+    );
+    return result[0].count > 0;
+  } catch (error) {
+    return false;
   }
 }
 

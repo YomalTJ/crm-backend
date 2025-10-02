@@ -6,7 +6,6 @@ const execAsync = promisify(exec);
 
 async function seedProductionData() {
   try {
-    console.log('🌱 Seeding production GND data...');
     
     const command = `mysql -h ${process.env.DB_HOST} -u ${process.env.DB_USERNAME} -p${process.env.DB_PASSWORD} ${process.env.DB_NAME} < seed-gnd-data.sql`;
     

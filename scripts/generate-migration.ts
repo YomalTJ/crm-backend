@@ -165,8 +165,8 @@ async function generateMigration() {
               `  🔗 Foreign key '${tableName}.${columnName}' needs to be added`,
             );
 
-            const fkQuery = generateAddForeignKeyQuery(tableName, foreignKey);
-            upQueries.push(fkQuery);
+            const fkQueries = generateAddForeignKeyQuery(tableName, foreignKey);
+            fkQueries.forEach((query) => upQueries.push(query));
 
             const constraintName = `FK_${tableName}_${columnName}`;
             downQueries.unshift(
@@ -340,7 +340,7 @@ function generateModifyColumnQuery(tableName: string, column: any): string {
 function generateAddForeignKeyQuery(
   tableName: string,
   foreignKey: any,
-): string {
+): string[] {
   const columnName = foreignKey.columnNames[0];
   const referencedTablePath = foreignKey.referencedTablePath;
   const referencedTable =
@@ -348,19 +348,29 @@ function generateAddForeignKeyQuery(
   const referencedColumn = foreignKey.referencedColumnNames[0];
   const constraintName = `FK_${tableName}_${columnName}`;
 
-  let query = `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${constraintName}\` `;
-  query += `FOREIGN KEY (\`${columnName}\`) `;
-  query += `REFERENCES \`${referencedTable}\`(\`${referencedColumn}\`)`;
+  const queries: string[] = [];
+
+  // First, add a query to handle orphaned records by setting them to NULL
+  queries.push(
+    `UPDATE \`${tableName}\` SET \`${columnName}\` = NULL WHERE \`${columnName}\` IS NOT NULL AND \`${columnName}\` NOT IN (SELECT \`${referencedColumn}\` FROM \`${referencedTable}\`)`,
+  );
+
+  // Then add the foreign key constraint
+  let fkQuery = `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${constraintName}\` `;
+  fkQuery += `FOREIGN KEY (\`${columnName}\`) `;
+  fkQuery += `REFERENCES \`${referencedTable}\`(\`${referencedColumn}\`)`;
 
   if (foreignKey.onDelete) {
-    query += ` ON DELETE ${foreignKey.onDelete}`;
+    fkQuery += ` ON DELETE ${foreignKey.onDelete}`;
   }
 
   if (foreignKey.onUpdate) {
-    query += ` ON UPDATE ${foreignKey.onUpdate}`;
+    fkQuery += ` ON UPDATE ${foreignKey.onUpdate}`;
   }
 
-  return query;
+  queries.push(fkQuery);
+
+  return queries;
 }
 
 function generateAddIndexQuery(tableName: string, index: any): string {
