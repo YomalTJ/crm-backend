@@ -138,7 +138,7 @@ export class CreateSamurdhiFamilyDto {
   resource_id: string[];
 
   @IsBoolean() monthlySaving: boolean;
-  @IsOptional() @IsNumber() savingAmount: number;
+  @IsOptional() @IsNumber() savingAmount?: number;
 
   // Updated to accept arrays
   @IsOptional()

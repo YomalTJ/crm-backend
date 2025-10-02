@@ -15,8 +15,6 @@ async function seedProductionData() {
     if (stderr) {
       console.warn('Warning:', stderr);
     }
-    
-    console.log('✅ GND data seeded successfully');
     console.log('Output:', stdout);
     
   } catch (error) {

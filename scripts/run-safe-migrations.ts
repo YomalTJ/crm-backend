@@ -461,48 +461,50 @@ async function main() {
   }
 }
 
-// Improved helper function to extract SQL queries from migration function
-// Helper function to extract SQL queries from migration function
 function extractQueriesFromMigration(migrationCode: string): string[] {
   const queries: string[] = [];
+  const seenQueries = new Set<string>(); // Track seen queries to avoid duplicates
 
-  // Improved pattern to capture SQL queries with proper handling of backticks and quotes
-  const queryPatterns = [
-    /await queryRunner\.query\(`((?:[^`]|\\`)+)`\)/g, // Backticks with escaped backticks
-    /await queryRunner\.query\(['"]((?:[^'"]|\\['"])+)['"]\)/g, // Quotes with escaped quotes
-    /queryRunner\.query\(`((?:[^`]|\\`)+)`\)/g, // Without await, backticks
-    /queryRunner\.query\(['"]((?:[^'"]|\\['"])+)['"]\)/g, // Without await, quotes
-  ];
+  // Single comprehensive pattern to capture SQL queries
+  const queryPattern =
+    /(?:await\s+)?queryRunner\.query\((['"`])((?:\\\1|(?!\1).)*)\1\)/g;
 
-  for (const pattern of queryPatterns) {
-    let match;
-    while ((match = pattern.exec(migrationCode)) !== null) {
-      // Clean up the query (remove escaped characters)
-      let query = match[1]
-        .replace(/\\`/g, '`')
-        .replace(/\\'/g, "'")
-        .replace(/\\"/g, '"')
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r')
-        .replace(/\\t/g, '\t');
+  let match;
+  while ((match = queryPattern.exec(migrationCode)) !== null) {
+    const quoteChar = match[1];
+    let query = match[2];
 
-      // Remove extra backslashes that might be left
-      query = query.replace(/\\([^`'"nrt])/g, '$1');
+    // Clean up the query based on quote type
+    if (quoteChar === '`') {
+      query = query.replace(/\\`/g, '`');
+    } else if (quoteChar === "'") {
+      query = query.replace(/\\'/g, "'");
+    } else if (quoteChar === '"') {
+      query = query.replace(/\\"/g, '"');
+    }
 
+    // Remove other escape sequences
+    query = query
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\([^`'"nrt])/g, '$1');
+
+    // Normalize the query for comparison (remove extra spaces)
+    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
+
+    // Only add if we haven't seen this query before
+    if (!seenQueries.has(normalizedQuery)) {
       queries.push(query);
+      seenQueries.add(normalizedQuery);
     }
   }
 
-  // If no queries found with patterns, use the hardcoded queries from your migration
-  if (queries.length === 0) {
-    console.log('No queries extracted with patterns, using hardcoded queries');
-    queries.push(
-      `ALTER TABLE \`samurdhi_family\` ADD \`maleBelow16\` int NOT NULL DEFAULT '0'`,
-      `ALTER TABLE \`samurdhi_family\` ADD \`femaleBelow16\` int NOT NULL DEFAULT '0'`,
-      `ALTER TABLE \`samurdhi_family\` ADD \`maleAbove60\` int NOT NULL DEFAULT '0'`,
-      `ALTER TABLE \`samurdhi_family\` ADD \`femaleAbove60\` int NOT NULL DEFAULT '0'`,
-    );
-  }
+  // Debug: Log extracted queries
+  console.log(`📝 Extracted ${queries.length} unique queries from migration`);
+  queries.forEach((q, i) => {
+    console.log(`  ${i + 1}. ${q.substring(0, 80).replace(/\s+/g, ' ')}...`);
+  });
 
   return queries;
 }

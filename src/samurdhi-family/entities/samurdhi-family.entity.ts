@@ -171,7 +171,7 @@ export class SamurdhiFamily {
   @JoinColumn({ name: 'subsisdy_id' })
   samurdhiSubsidy: SamurdhiSubsisdy;
 
-  @ManyToOne(() => AswasumaCategory)
+  @ManyToOne(() => AswasumaCategory, { nullable: true })
   @JoinColumn({ name: 'aswesuma_cat_id' })
   aswasumaCategory: AswasumaCategory;
 
@@ -215,8 +215,8 @@ export class SamurdhiFamily {
   @Column()
   monthlySaving: boolean;
 
-  @Column({ nullable: true })
-  savingAmount: number;
+  @Column({ nullable: true, type: 'int' })
+  savingAmount: number | null;
 
   @Column('json', { nullable: true })
   health_indicator_id: string[];
