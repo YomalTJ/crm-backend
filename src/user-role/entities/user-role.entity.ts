@@ -6,7 +6,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Staff } from '../../staff/entities/staff.entity';
-import { SystemModules } from '../../module/entities/module.entity';
+import { SystemModules } from 'src/module/entities/module.entity';
 
 @Entity()
 export class UserRole {

@@ -176,9 +176,16 @@ export class SamurdhiFamilyService {
         : undefined,
 
       otherProject: dto.otherProject,
-      childName: dto.childName ?? null,
-      childAge: dto.childAge ?? null,
-      childGender: dto.childGender ?? null,
+      childName:
+        dto.childName && dto.childName.trim() !== '' ? dto.childName : null,
+      childAge:
+        dto.childAge && !isNaN(Number(dto.childAge)) && Number(dto.childAge) > 0
+          ? Number(dto.childAge)
+          : null,
+      childGender:
+        dto.childGender && dto.childGender.trim() !== ''
+          ? dto.childGender
+          : null,
 
       jobField: dto.job_field_id
         ? ({ job_field_id: dto.job_field_id } as any)
