@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import 'tsconfig-paths/register';
 import dataSource from '../data-source';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import {
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+} from 'fs';
 import { join } from 'path';
 
 interface TableInfo {
@@ -32,6 +38,13 @@ interface IndexInfo {
   NON_UNIQUE: number;
 }
 
+interface PendingMigration {
+  file: string;
+  path: string;
+  name: string;
+  upQueries: string[];
+}
+
 async function generateMigration() {
   try {
     console.log('🔍 Analyzing database schema differences...');
@@ -41,11 +54,9 @@ async function generateMigration() {
     await dataSource.initialize();
     console.log('✅ Database connection established');
 
-    // Get entity metadata
     const entityMetadatas = dataSource.entityMetadatas;
     console.log(`📋 Found ${entityMetadatas.length} entities in code`);
 
-    // Get existing tables from database
     const existingTables: TableInfo[] = await dataSource.query(
       `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
        WHERE TABLE_SCHEMA = DATABASE()`,
@@ -56,9 +67,9 @@ async function generateMigration() {
 
     const upQueries: string[] = [];
     const downQueries: string[] = [];
-    const processedOperations = new Set<string>(); // Track processed operations
+    const processedOperations = new Set<string>();
 
-    // Check each entity
+    // Check each entity for differences
     for (const entityMetadata of entityMetadatas) {
       const tableName = entityMetadata.tableName;
       console.log(
@@ -66,14 +77,20 @@ async function generateMigration() {
       );
 
       if (!existingTableNames.has(tableName)) {
-        // Table doesn't exist - create it
         console.log(`  ➕ Table '${tableName}' needs to be created`);
-
         const createTableQuery = generateCreateTableQuery(entityMetadata);
         upQueries.push(createTableQuery);
         downQueries.unshift(`DROP TABLE \`${tableName}\``);
+
+        const seedQueries = getSeedDataFromEntity(entityMetadata);
+        if (seedQueries.up.length > 0) {
+          upQueries.push(...seedQueries.up);
+          downQueries.unshift(...seedQueries.down);
+          console.log(
+            `  🌱 Added ${seedQueries.up.length} seed records for ${tableName}`,
+          );
+        }
       } else {
-        // Table exists - check columns
         const existingColumns: ColumnInfo[] = await dataSource.query(
           `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_KEY
            FROM INFORMATION_SCHEMA.COLUMNS 
@@ -87,7 +104,6 @@ async function generateMigration() {
           existingColumns.map((c) => [c.COLUMN_NAME, c]),
         );
 
-        // Check for missing columns
         for (const column of entityMetadata.columns) {
           const columnName = column.databaseName;
 
@@ -95,14 +111,12 @@ async function generateMigration() {
             console.log(
               `  ➕ Column '${tableName}.${columnName}' needs to be added`,
             );
-
             const addColumnQuery = generateAddColumnQuery(tableName, column);
             upQueries.push(addColumnQuery);
             downQueries.unshift(
               `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnName}\``,
             );
           } else {
-            // Column exists - check if type changed
             const existingColumn = existingColumnMap.get(columnName)!;
             const expectedType = getColumnType(column);
 
@@ -116,7 +130,6 @@ async function generateMigration() {
               console.log(
                 `     From: ${existingColumn.COLUMN_TYPE} To: ${expectedType}`,
               );
-
               const modifyColumnQuery = generateModifyColumnQuery(
                 tableName,
                 column,
@@ -126,7 +139,6 @@ async function generateMigration() {
           }
         }
 
-        // Check for foreign keys - FIXED QUERY
         const existingForeignKeys: ForeignKeyInfo[] = await dataSource.query(
           `SELECT 
             kcu.CONSTRAINT_NAME,
@@ -152,7 +164,6 @@ async function generateMigration() {
           ]),
         );
 
-        // Check entity foreign keys
         for (const foreignKey of entityMetadata.foreignKeys) {
           const columnName = foreignKey.columnNames[0];
           const referencedTable =
@@ -164,10 +175,8 @@ async function generateMigration() {
             console.log(
               `  🔗 Foreign key '${tableName}.${columnName}' needs to be added`,
             );
-
             const fkQueries = generateAddForeignKeyQuery(tableName, foreignKey);
             fkQueries.forEach((query) => upQueries.push(query));
-
             const constraintName = `FK_${tableName}_${columnName}`;
             downQueries.unshift(
               `ALTER TABLE \`${tableName}\` DROP FOREIGN KEY \`${constraintName}\``,
@@ -175,7 +184,6 @@ async function generateMigration() {
           }
         }
 
-        // Check indexes
         const existingIndexes: IndexInfo[] = await dataSource.query(
           `SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE
            FROM INFORMATION_SCHEMA.STATISTICS
@@ -189,7 +197,6 @@ async function generateMigration() {
           existingIndexes.map((idx) => [idx.INDEX_NAME, idx]),
         );
 
-        // Check entity indexes
         for (const index of entityMetadata.indices) {
           const operationKey = `INDEX_${tableName}_${index.name}`;
 
@@ -198,7 +205,6 @@ async function generateMigration() {
             !processedOperations.has(operationKey)
           ) {
             console.log(`  📇 Index '${index.name}' needs to be created`);
-
             const indexQuery = generateAddIndexQuery(tableName, index);
             upQueries.push(indexQuery);
             downQueries.unshift(
@@ -216,11 +222,33 @@ async function generateMigration() {
       process.exit(0);
     }
 
-    // Generate migration file
+    // Check for pending migration files
+    const migrationsDir = join(__dirname, '../src/migrations');
+    const pendingMigration = await findPendingMigrationWithChanges(
+      migrationsDir,
+      upQueries,
+    );
+
+    if (pendingMigration) {
+      console.log(
+        '\n🔄 Found existing pending migration that addresses these changes:',
+      );
+      console.log(`   File: ${pendingMigration.file}`);
+      console.log(`   Migration: ${pendingMigration.name}`);
+      console.log(
+        '\n✅ Reusing existing migration file instead of creating a new one',
+      );
+      console.log(
+        '\n💡 Next: Run "npm run migration:run" to apply this migration',
+      );
+      await dataSource.destroy();
+      process.exit(0);
+    }
+
+    // Generate new migration
     const timestamp = Date.now();
     const migrationName = `Migration${timestamp}`;
     const fileName = `${timestamp}-${migrationName}.ts`;
-    const migrationsDir = join(__dirname, '../src/migrations');
 
     if (!existsSync(migrationsDir)) {
       mkdirSync(migrationsDir, { recursive: true });
@@ -231,11 +259,10 @@ async function generateMigration() {
       upQueries,
       downQueries,
     );
-
     const filePath = join(migrationsDir, fileName);
     writeFileSync(filePath, migrationContent);
 
-    console.log('\n📄 Migration file generated successfully!');
+    console.log('\n📄 New migration file generated:');
     console.log(`   File: src/migrations/${fileName}`);
     console.log(`   Changes: ${upQueries.length} operations`);
     console.log('\n📋 Migration summary:');
@@ -248,14 +275,132 @@ async function generateMigration() {
     console.log('\n✅ Migration generation completed!');
   } catch (error: any) {
     console.error('\n❌ Migration generation failed:', error.message);
-    console.error('Stack trace:', error.stack);
-
     if (dataSource.isInitialized) {
       await dataSource.destroy();
     }
-
     process.exit(1);
   }
+}
+
+async function findPendingMigrationWithChanges(
+  migrationsDir: string,
+  requiredQueries: string[],
+): Promise<PendingMigration | null> {
+  if (!existsSync(migrationsDir)) {
+    return null;
+  }
+
+  const migrationFiles = readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.ts') || file.endsWith('.js'))
+    .sort();
+
+  if (migrationFiles.length === 0) {
+    return null;
+  }
+
+  const executedMigrations = await dataSource.query(
+    'SELECT name FROM migrations ORDER BY timestamp',
+  );
+  const executedNames = new Set(executedMigrations.map((m: any) => m.name));
+
+  console.log('\n🔍 Checking for pending migrations with matching changes...');
+
+  for (const file of migrationFiles) {
+    const migrationPath = join(migrationsDir, file);
+
+    try {
+      delete require.cache[require.resolve(migrationPath)];
+      const migrationModule = require(migrationPath);
+      const MigrationClass = Object.values(migrationModule)[0] as any;
+
+      if (!MigrationClass) continue;
+
+      const migration = new MigrationClass();
+      const migrationName = migration.name || MigrationClass.name;
+
+      if (executedNames.has(migrationName)) continue;
+
+      const migrationContent = readFileSync(migrationPath, 'utf-8');
+      const existingQueries = extractQueriesFromMigrationFile(migrationContent);
+
+      if (migrationCoversRequiredChanges(existingQueries, requiredQueries)) {
+        return {
+          file,
+          path: migrationPath,
+          name: migrationName,
+          upQueries: existingQueries,
+        };
+      }
+    } catch (error: any) {
+      console.log(`   ⚠️  Could not analyze ${file}: ${error.message}`);
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function extractQueriesFromMigrationFile(fileContent: string): string[] {
+  const queries: string[] = [];
+  const upMethodMatch = fileContent.match(
+    /public async up\([\s\S]*?\): Promise<void> \{([\s\S]*?)\n  \}/,
+  );
+
+  if (!upMethodMatch) return queries;
+
+  const upMethodBody = upMethodMatch[1];
+  const queryPattern =
+    /await queryRunner\.query\((['"`])((?:\\\1|(?!\1).)*)\1\)/g;
+
+  let match;
+  while ((match = queryPattern.exec(upMethodBody)) !== null) {
+    const quoteChar = match[1];
+    let query = match[2];
+
+    if (quoteChar === '`') {
+      query = query.replace(/\\`/g, '`');
+    } else if (quoteChar === "'") {
+      query = query.replace(/\\'/g, "'");
+    } else if (quoteChar === '"') {
+      query = query.replace(/\\"/g, '"');
+    }
+
+    query = query
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\([^`'"nrt])/g, '$1');
+
+    queries.push(query.trim());
+  }
+
+  return queries;
+}
+
+function migrationCoversRequiredChanges(
+  existingQueries: string[],
+  requiredQueries: string[],
+): boolean {
+  const normalizeQuery = (query: string): string => {
+    return query.replace(/\s+/g, ' ').replace(/`/g, '').trim().toUpperCase();
+  };
+
+  const existingNormalized = new Set(existingQueries.map(normalizeQuery));
+  const requiredNormalized = requiredQueries.map(normalizeQuery);
+
+  let matchCount = 0;
+  for (const required of requiredNormalized) {
+    if (existingNormalized.has(required)) {
+      matchCount++;
+    }
+  }
+
+  const coveragePercent = (matchCount / requiredQueries.length) * 100;
+  console.log(
+    `   Found ${matchCount}/${requiredQueries.length} matching queries (${coveragePercent.toFixed(1)}% coverage)`,
+  );
+
+  return coveragePercent >= 80;
 }
 
 function generateCreateTableQuery(entityMetadata: any): string {
@@ -266,20 +411,16 @@ function generateCreateTableQuery(entityMetadata: any): string {
   for (const column of entityMetadata.columns) {
     const columnDef = generateColumnDefinition(column);
     columns.push(columnDef);
-
     if (column.isPrimary) {
       primaryKeys.push(`\`${column.databaseName}\``);
     }
   }
 
   let query = `CREATE TABLE \`${tableName}\` (${columns.join(', ')}`;
-
   if (primaryKeys.length > 0) {
     query += `, PRIMARY KEY (${primaryKeys.join(', ')})`;
   }
-
   query += ') ENGINE=InnoDB';
-
   return query;
 }
 
@@ -296,12 +437,25 @@ function generateColumnDefinition(column: any): string {
     definition += ' AUTO_INCREMENT';
   }
 
-  if (column.default !== undefined && column.default !== null) {
-    // Handle different types of default values
-    let defaultValue;
+  if (
+    typeof column.default === 'function' ||
+    (typeof column.default === 'object' && column.default !== null)
+  ) {
+    if (columnType.includes('datetime') || columnType.includes('timestamp')) {
+      if (
+        column.default?.name === 'CURRENT_TIMESTAMP' ||
+        (typeof column.default === 'function' &&
+          column.default.toString().includes('CURRENT_TIMESTAMP'))
+      ) {
+        definition += ' DEFAULT CURRENT_TIMESTAMP';
+      }
+    }
+    return definition;
+  }
 
+  if (column.default !== undefined && column.default !== null) {
+    let defaultValue;
     if (typeof column.default === 'string') {
-      // Check if it's a SQL function like NOW(), CURRENT_TIMESTAMP, etc.
       const upperDefault = column.default.toUpperCase();
       if (
         upperDefault.includes('NOW()') ||
@@ -315,12 +469,9 @@ function generateColumnDefinition(column: any): string {
       }
     } else if (typeof column.default === 'boolean') {
       defaultValue = column.default ? 'true' : 'false';
-    } else if (typeof column.default === 'number') {
-      defaultValue = column.default;
     } else {
       defaultValue = column.default;
     }
-
     definition += ` DEFAULT ${defaultValue}`;
   }
 
@@ -349,13 +500,10 @@ function generateAddForeignKeyQuery(
   const constraintName = `FK_${tableName}_${columnName}`;
 
   const queries: string[] = [];
-
-  // First, add a query to handle orphaned records by setting them to NULL
   queries.push(
     `UPDATE \`${tableName}\` SET \`${columnName}\` = NULL WHERE \`${columnName}\` IS NOT NULL AND \`${columnName}\` NOT IN (SELECT \`${referencedColumn}\` FROM \`${referencedTable}\`)`,
   );
 
-  // Then add the foreign key constraint
   let fkQuery = `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${constraintName}\` `;
   fkQuery += `FOREIGN KEY (\`${columnName}\`) `;
   fkQuery += `REFERENCES \`${referencedTable}\`(\`${referencedColumn}\`)`;
@@ -363,13 +511,11 @@ function generateAddForeignKeyQuery(
   if (foreignKey.onDelete) {
     fkQuery += ` ON DELETE ${foreignKey.onDelete}`;
   }
-
   if (foreignKey.onUpdate) {
     fkQuery += ` ON UPDATE ${foreignKey.onUpdate}`;
   }
 
   queries.push(fkQuery);
-
   return queries;
 }
 
@@ -379,7 +525,6 @@ function generateAddIndexQuery(tableName: string, index: any): string {
     .map((col: any) => `\`${col.databaseName}\``)
     .join(', ');
   const unique = index.isUnique ? 'UNIQUE ' : '';
-
   return `CREATE ${unique}INDEX \`${indexName}\` ON \`${tableName}\` (${columns})`;
 }
 
@@ -397,45 +542,36 @@ function getColumnType(column: any): string {
   }
 
   if (typeof type === 'string') {
-    if (type === 'int' || type === 'integer') {
-      return 'int';
-    } else if (type === 'varchar') {
-      return `varchar(${column.length || 255})`;
-    } else if (type === 'text') {
-      return 'text';
-    } else if (type === 'datetime') {
-      return 'datetime';
-    } else if (type === 'timestamp') {
-      return 'timestamp';
-    } else if (type === 'boolean' || type === 'bool') {
-      return 'tinyint(1)';
-    } else if (type === 'decimal') {
-      return `decimal(${column.precision || 10},${column.scale || 2})`;
-    } else if (type === 'float') {
-      return 'float';
-    } else if (type === 'double') {
-      return 'double';
-    } else if (type === 'date') {
-      return 'date';
-    } else if (type === 'time') {
-      return 'time';
-    } else if (type === 'enum') {
+    const typeMap: any = {
+      int: 'int',
+      integer: 'int',
+      varchar: `varchar(${column.length || 255})`,
+      text: 'text',
+      datetime: 'datetime',
+      timestamp: 'timestamp',
+      boolean: 'tinyint(1)',
+      bool: 'tinyint(1)',
+      decimal: `decimal(${column.precision || 10},${column.scale || 2})`,
+      float: 'float',
+      double: 'double',
+      date: 'date',
+      time: 'time',
+      json: 'json',
+      uuid: 'varchar(36)',
+    };
+
+    if (typeMap[type]) {
+      return typeMap[type];
+    }
+
+    if (type === 'enum') {
       const values = column.enum?.map((v: string) => `'${v}'`).join(',') || '';
       return `enum(${values})`;
-    } else if (type === 'json') {
-      return 'json';
-    } else if (type === 'uuid') {
-      return 'varchar(36)';
     }
 
     return type;
   }
 
-  console.warn(
-    `Unknown column type for ${column.databaseName}:`,
-    typeof type,
-    type,
-  );
   return 'varchar(255)';
 }
 
@@ -443,7 +579,6 @@ function normalizeColumnType(type: string): string {
   if (typeof type !== 'string') {
     type = String(type);
   }
-
   return type
     .replace(/\(\d+\)/g, '')
     .replace(/\(\d+,\d+\)/g, '')
@@ -456,10 +591,8 @@ function generateMigrationFile(
   upQueries: string[],
   downQueries: string[],
 ): string {
-  // Use regular string literals instead of template literals to avoid escaping issues
   const upQueriesStr = upQueries
     .map((q) => {
-      // Escape single quotes and backslashes for string literal
       const escaped = q.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       return `    await queryRunner.query('${escaped}');`;
     })
@@ -467,7 +600,6 @@ function generateMigrationFile(
 
   const downQueriesStr = downQueries
     .map((q) => {
-      // Escape single quotes and backslashes for string literal
       const escaped = q.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       return `    await queryRunner.query('${escaped}');`;
     })
@@ -487,6 +619,57 @@ ${downQueriesStr}
   }
 }
 `;
+}
+
+function getSeedDataFromEntity(entityMetadata: any): {
+  up: string[];
+  down: string[];
+} {
+  const upQueries: string[] = [];
+  const downQueries: string[] = [];
+
+  try {
+    const entityClass = entityMetadata.target;
+    if (entityClass && entityClass.SEED_DATA) {
+      const seedData = entityClass.SEED_DATA;
+      const tableName = entityMetadata.tableName;
+
+      console.log(
+        `  🌱 Found ${seedData.length} seed records in entity for ${tableName}`,
+      );
+
+      seedData.forEach((record: any) => {
+        const columns = Object.keys(record)
+          .map((col) => `\`${col}\``)
+          .join(', ');
+        const values = Object.values(record)
+          .map((value) =>
+            typeof value === 'string'
+              ? `'${value.replace(/'/g, "\\'")}'`
+              : value,
+          )
+          .join(', ');
+
+        upQueries.push(
+          `INSERT INTO \`${tableName}\` (${columns}) VALUES (${values})`,
+        );
+
+        const stringFields = Object.keys(record).filter(
+          (key) => typeof record[key] === 'string',
+        );
+        if (stringFields.length > 0) {
+          const identifier = stringFields[0];
+          downQueries.unshift(
+            `DELETE FROM \`${tableName}\` WHERE \`${identifier}\` = '${record[identifier]}'`,
+          );
+        }
+      });
+    }
+  } catch (error: any) {
+    console.log(`  ⚠️  Could not read seed data from entity: ${error.message}`);
+  }
+
+  return { up: upQueries, down: downQueries };
 }
 
 generateMigration();
