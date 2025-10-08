@@ -10,7 +10,6 @@
     "build": "nest build",
     "postbuild": "npm run seed:prod",
     "build:no-migrate": "nest build",
-    "seed:prod": "ts-node scripts/seed-production-data.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
