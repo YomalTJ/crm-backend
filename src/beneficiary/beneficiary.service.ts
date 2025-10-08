@@ -27,6 +27,8 @@ import { GrantUtilizationFilterDto } from './dto/grant-utilization-filter.dto';
 import { GrantUtilizationResponseDto } from './dto/grant-utilization-response.dto';
 import { BeneficiaryDetailsFilterDto } from './dto/beneficiary-details-filter.dto';
 import { BeneficiaryDetailsResponseDto } from './dto/beneficiary-details-response.dto';
+import { HhNumberFilterDto } from './dto/hh-number-filter.dto';
+import { HhNumberResponseDto } from './dto/hh-number-response.dto';
 
 @Injectable()
 export class BeneficiaryService {
@@ -2039,5 +2041,55 @@ export class BeneficiaryService {
         };
       }),
     );
+  }
+
+  async getHhNumbers(
+    filter: HhNumberFilterDto,
+  ): Promise<HhNumberResponseDto[]> {
+    let query = `
+    SELECT 
+      sf.aswasumaHouseholdNo as aswasumaHouseholdNo
+    FROM samurdhi_family sf
+    WHERE sf.aswasumaHouseholdNo IS NOT NULL 
+      AND sf.aswasumaHouseholdNo != ''
+  `;
+
+    const paramValues: any[] = [];
+
+    // Add consent filter - default to true if not specified
+    if (filter.hasConsentedToEmpowerment !== false) {
+      query += ' AND sf.hasConsentedToEmpowerment = ?';
+      paramValues.push(true);
+    }
+
+    // Add location filters
+    if (filter.district_id) {
+      query += ' AND sf.district_id = ?';
+      paramValues.push(filter.district_id);
+    }
+
+    if (filter.ds_id) {
+      query += ' AND sf.ds_id = ?';
+      paramValues.push(filter.ds_id);
+    }
+
+    if (filter.zone_id) {
+      query += ' AND sf.zone_id = ?';
+      paramValues.push(filter.zone_id);
+    }
+
+    if (filter.gnd_id) {
+      query += ' AND sf.gnd_id = ?';
+      paramValues.push(filter.gnd_id);
+    }
+
+    // Order by HH number for consistent results
+    query += ' ORDER BY sf.aswasumaHouseholdNo';
+
+    const results = await this.entityManager.query(query, paramValues);
+
+    return results.map((result) => ({
+      aswasumaHouseholdNo: result.aswasumaHouseholdNo,
+    }));
   }
 }

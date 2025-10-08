@@ -206,7 +206,9 @@ export class UpdateSamurdhiFamilyDto {
   @IsOptional() @IsString() samurdhiBankAccountName?: string;
   @IsOptional() @IsString() samurdhiBankAccountNumber?: string;
   @IsOptional() @IsString() samurdhiBankName?: string;
-  @IsOptional() @IsString() samurdhiBankAccountType?: string;
+  @IsOptional()
+  @IsNumber()
+  samurdhi_bank_account_type_id?: number;
 
   @IsOptional()
   @IsBoolean()

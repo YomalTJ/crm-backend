@@ -77,6 +77,8 @@ import { BeneficiaryTraining } from './beneficiary-training/entities/beneficiary
 import { BeneficiaryService } from './beneficiary/beneficiary.service';
 import { BeneficiaryController } from './beneficiary/beneficiary.controller';
 import { BeneficiaryModule } from './beneficiary/beneficiary.module';
+import { AccountTypesModule } from './account-types/account-types.module';
+import { AccountType } from './account-types/entities/account-type.entity';
 
 @Module({
   imports: [
@@ -126,6 +128,7 @@ import { BeneficiaryModule } from './beneficiary/beneficiary.module';
           BusinessEmpowerment,
           Course,
           BeneficiaryTraining,
+          AccountType
         ],
         synchronize: config.get('NODE_ENV') === 'development',
         migrationsRun: config.get('NODE_ENV') === 'production',
@@ -187,6 +190,7 @@ import { BeneficiaryModule } from './beneficiary/beneficiary.module';
     CourseModule,
     BeneficiaryTrainingModule,
     BeneficiaryModule,
+    AccountTypesModule,
   ],
   controllers: [AppController, TokenCleanupController, BeneficiaryController],
   providers: [AppService, JwtAuthMiddleware, RolesGuard, BeneficiaryService],
@@ -232,6 +236,7 @@ export class AppModule {
         { path: 'business-empowerment', method: RequestMethod.ALL },
         { path: 'course', method: RequestMethod.ALL },
         { path: 'beneficiaries', method: RequestMethod.ALL },
+        { path: 'account-types', method: RequestMethod.ALL },
       );
   }
 }

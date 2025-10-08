@@ -21,6 +21,7 @@ import { Staff } from 'src/staff/entities/staff.entity';
 import { EmpowermentRefusalReason } from 'src/empowerment-refusal-reason/entities/empowerment-refusal-reason.entity';
 import { Disability } from 'src/disability/entities/disability.entity';
 import { Livelihood } from 'src/livelihoods/entities/livelihood.entity';
+import { AccountType } from 'src/account-types/entities/account-type.entity';
 
 export enum MainProgram {
   NP = 'NP', // National Program
@@ -251,8 +252,9 @@ export class SamurdhiFamily {
   @Column({ nullable: true })
   samurdhiBankName: string;
 
-  @Column({ nullable: true })
-  samurdhiBankAccountType: string;
+  @ManyToOne(() => AccountType, { nullable: true })
+  @JoinColumn({ name: 'samurdhi_bank_account_type_id' })
+  samurdhiBankAccountType: AccountType | null;
 
   // Bank transfer preference
   @Column({ nullable: true })

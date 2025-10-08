@@ -25,6 +25,8 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { BeneficiaryDetailsFilterDto } from './dto/beneficiary-details-filter.dto';
 import { BeneficiaryDetailsResponseDto } from './dto/beneficiary-details-response.dto';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+import { HhNumberFilterDto } from './dto/hh-number-filter.dto';
+import { HhNumberResponseDto } from './dto/hh-number-response.dto';
 
 @Controller('beneficiaries')
 export class BeneficiaryController {
@@ -100,5 +102,14 @@ export class BeneficiaryController {
     @Query() filter: BeneficiaryDetailsFilterDto,
   ): Promise<BeneficiaryDetailsResponseDto[]> {
     return this.beneficiaryService.getBeneficiaryDetails(filter);
+  }
+
+  @Get('hh-numbers')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('National Level User')
+  async getHhNumbers(
+    @Query() filter: HhNumberFilterDto,
+  ): Promise<HhNumberResponseDto[]> {
+    return this.beneficiaryService.getHhNumbers(filter);
   }
 }

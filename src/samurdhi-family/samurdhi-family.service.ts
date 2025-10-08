@@ -24,6 +24,7 @@ import { ProjectDetailReportDto } from './dto/counts/project-detail-report.dto';
 import { Disability } from 'src/disability/entities/disability.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import { AccountType } from 'src/account-types/entities/account-type.entity';
 
 @Injectable()
 export class SamurdhiFamilyService {
@@ -206,7 +207,11 @@ export class SamurdhiFamilyService {
       samurdhiBankAccountName: dto.samurdhiBankAccountName,
       samurdhiBankAccountNumber: dto.samurdhiBankAccountNumber,
       samurdhiBankName: dto.samurdhiBankName,
-      samurdhiBankAccountType: dto.samurdhiBankAccountType,
+      samurdhiBankAccountType: dto.samurdhi_bank_account_type_id
+        ? await this.familyRepo.manager.findOneBy(AccountType, {
+            samurdhi_bank_account_type_id: dto.samurdhi_bank_account_type_id,
+          })
+        : null,
       wantsAswesumaBankTransfer: dto.wantsAswesumaBankTransfer,
       otherBankName: dto.otherBankName,
       otherBankBranch: dto.otherBankBranch,
@@ -756,8 +761,13 @@ export class SamurdhiFamilyService {
         updateData.samurdhiBankAccountNumber = dto.samurdhiBankAccountNumber;
       if (dto.samurdhiBankName !== undefined)
         updateData.samurdhiBankName = dto.samurdhiBankName;
-      if (dto.samurdhiBankAccountType !== undefined)
-        updateData.samurdhiBankAccountType = dto.samurdhiBankAccountType;
+      if (dto.samurdhi_bank_account_type_id !== undefined) {
+        updateData.samurdhiBankAccountType = dto.samurdhi_bank_account_type_id
+          ? await this.familyRepo.manager.findOneBy(AccountType, {
+              samurdhi_bank_account_type_id: dto.samurdhi_bank_account_type_id,
+            })
+          : null;
+      }
 
       // Add the new bank transfer and subsidy fields
       if (dto.wantsAswesumaBankTransfer !== undefined)
