@@ -8,7 +8,6 @@
   "scripts": {
     "prebuild": "npm run migration:generate && npm run migration:run",
     "build": "nest build",
-    "postbuild": "npm run seed:prod",
     "build:no-migrate": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
