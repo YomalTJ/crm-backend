@@ -67,4 +67,68 @@ export class HouseholdCitizenService {
       hhReferences: sortedHouseholds.map((household) => household.hhReference),
     };
   }
+
+  async saveHouseholdsWithCitizens(
+    households: any[],
+    gnCode: string,
+  ): Promise<{
+    success: boolean;
+    savedHouseholds: number;
+    savedCitizens: number;
+  }> {
+    let savedHouseholds = 0;
+    let savedCitizens = 0;
+
+    for (const household of households) {
+      try {
+        // Save or update household
+        const householdEntity = this.householdRepository.create({
+          hhReference: household.hH_reference,
+          gnCode: gnCode,
+          applicantName: household.applicant_name,
+          addressLine1: household.addressLine_1 || null,
+          addressLine2: household.addressLine_2 || null,
+          addressLine3: household.addressLine_3 || null,
+          singleMother: household.single_Mother === 'Yes' ? 'Yes' : 'No',
+          level: household.level,
+        });
+
+        await this.householdRepository.save(householdEntity);
+        savedHouseholds++;
+
+        // Delete existing citizens for this household
+        await this.citizenRepository.delete({
+          hhReference: household.hH_reference,
+        });
+
+        // Save new citizens
+        if (household.citizens && household.citizens.length > 0) {
+          for (const citizen of household.citizens) {
+            const citizenEntity = this.citizenRepository.create({
+              hhReference: household.hH_reference,
+              name: citizen.name,
+              dateOfBirth: new Date(citizen.date_of_Birth),
+              age: citizen.age,
+              gender: citizen.gender || 'other',
+            });
+
+            await this.citizenRepository.save(citizenEntity);
+            savedCitizens++;
+          }
+        }
+      } catch (error) {
+        console.error(
+          `Error saving household ${household.hH_reference}:`,
+          error,
+        );
+        // Continue with next household
+      }
+    }
+
+    return {
+      success: true,
+      savedHouseholds,
+      savedCitizens,
+    };
+  }
 }

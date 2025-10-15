@@ -171,7 +171,7 @@ export class CreateSamurdhiFamilyDto {
   @IsOptional() @IsString() samurdhiBankName: string;
   @IsOptional()
   @IsNumber()
-  samurdhi_bank_account_type_id?: number;
+  samurdhiBankAccountType?: number;
 
   @IsBoolean()
   wantsAswesumaBankTransfer: boolean;

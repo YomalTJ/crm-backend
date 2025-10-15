@@ -252,9 +252,8 @@ export class SamurdhiFamily {
   @Column({ nullable: true })
   samurdhiBankName: string;
 
-  @ManyToOne(() => AccountType, { nullable: true })
-  @JoinColumn({ name: 'samurdhi_bank_account_type_id' })
-  samurdhiBankAccountType: AccountType | null;
+  @Column({ nullable: true, type: 'int' })
+  samurdhiBankAccountType: number | null;
 
   // Bank transfer preference
   @Column({ nullable: true })

@@ -27,6 +27,7 @@ export class SamurdhiFamilyController {
   constructor(private readonly familyService: SamurdhiFamilyService) { }
 
   @Post()
+  @UseGuards(AuthGuard)
   @UseInterceptors(FileInterceptor('consentLetter'))
   async create(
     @Body() dto: CreateSamurdhiFamilyDto,

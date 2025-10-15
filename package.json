@@ -6,9 +6,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "prebuild": "npm run migration:generate && npm run migration:run",
+    "prebuild": "npm run migration:run && npm run seed:prod",
     "build": "nest build",
     "build:no-migrate": "nest build",
+    "seed:prod": "ts-node scripts/seed-production-data.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

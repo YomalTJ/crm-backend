@@ -43,7 +43,7 @@ export class SamurdhiFamilyService {
 
     @InjectRepository(Gnd)
     private readonly gndRepo: Repository<Gnd>,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateSamurdhiFamilyDto,
@@ -113,8 +113,8 @@ export class SamurdhiFamilyService {
 
       beneficiaryType: dto.beneficiary_type_id
         ? ({
-            beneficiary_type_id: dto.beneficiary_type_id,
-          } as any)
+          beneficiary_type_id: dto.beneficiary_type_id,
+        } as any)
         : undefined,
 
       areaClassification: dto.areaClassification,
@@ -133,8 +133,8 @@ export class SamurdhiFamilyService {
 
       disability: dto.disability_id
         ? await this.familyRepo.manager.findOneBy(Disability, {
-            disabilityId: dto.disability_id,
-          })
+          disabilityId: dto.disability_id,
+        })
         : null,
 
       maleBelow16: dto.maleBelow16,
@@ -164,8 +164,8 @@ export class SamurdhiFamilyService {
 
       empowermentDimension: dto.empowerment_dimension_id
         ? ({
-            empowerment_dimension_id: dto.empowerment_dimension_id,
-          } as any)
+          empowerment_dimension_id: dto.empowerment_dimension_id,
+        } as any)
         : undefined,
 
       livelihood: dto.livelihood_id
@@ -207,11 +207,7 @@ export class SamurdhiFamilyService {
       samurdhiBankAccountName: dto.samurdhiBankAccountName,
       samurdhiBankAccountNumber: dto.samurdhiBankAccountNumber,
       samurdhiBankName: dto.samurdhiBankName,
-      samurdhiBankAccountType: dto.samurdhi_bank_account_type_id
-        ? await this.familyRepo.manager.findOneBy(AccountType, {
-            samurdhi_bank_account_type_id: dto.samurdhi_bank_account_type_id,
-          })
-        : null,
+      samurdhiBankAccountType: dto.samurdhiBankAccountType || null,
       wantsAswesumaBankTransfer: dto.wantsAswesumaBankTransfer,
       otherBankName: dto.otherBankName,
       otherBankBranch: dto.otherBankBranch,
@@ -329,11 +325,11 @@ export class SamurdhiFamilyService {
       hasDisability: family.hasDisability,
       disability: family.disability
         ? {
-            id: family.disability.disabilityId,
-            nameEnglish: family.disability.nameEN,
-            nameSinhala: family.disability.nameSi,
-            nameTamil: family.disability.nameTa,
-          }
+          id: family.disability.disabilityId,
+          nameEnglish: family.disability.nameEN,
+          nameSinhala: family.disability.nameSi,
+          nameTamil: family.disability.nameTa,
+        }
         : null,
       noOfMembers: {
         male: {
@@ -378,68 +374,68 @@ export class SamurdhiFamilyService {
       consentLetterPath: family.consentLetterPath,
       refusalReason: family.refusalReason
         ? {
-            id: family.refusalReason.id,
-            reasonSinhala: family.refusalReason.reason_si,
-            reasonEnglish: family.refusalReason.reason_en,
-            reasonTamil: family.refusalReason.reason_ta,
-          }
+          id: family.refusalReason.id,
+          reasonSinhala: family.refusalReason.reason_si,
+          reasonEnglish: family.refusalReason.reason_en,
+          reasonTamil: family.refusalReason.reason_ta,
+        }
         : null,
       consentGivenAt: family.consentGivenAt,
       beneficiaryType: family.beneficiaryType
         ? {
-            id: family.beneficiaryType.beneficiary_type_id,
-            nameEnglish: family.beneficiaryType.nameEnglish,
-            nameSinhala: family.beneficiaryType.nameSinhala,
-            nameTamil: family.beneficiaryType.nameTamil,
-          }
+          id: family.beneficiaryType.beneficiary_type_id,
+          nameEnglish: family.beneficiaryType.nameEnglish,
+          nameSinhala: family.beneficiaryType.nameSinhala,
+          nameTamil: family.beneficiaryType.nameTamil,
+        }
         : null,
       areaClassification: family.areaClassification,
       currentEmployment: family.currentEmployment
         ? {
-            id: family.currentEmployment.employment_id,
-            nameEnglish: family.currentEmployment.nameEnglish,
-            nameSinhala: family.currentEmployment.nameSinhala,
-            nameTamil: family.currentEmployment.nameTamil,
-          }
+          id: family.currentEmployment.employment_id,
+          nameEnglish: family.currentEmployment.nameEnglish,
+          nameSinhala: family.currentEmployment.nameSinhala,
+          nameTamil: family.currentEmployment.nameTamil,
+        }
         : null,
       otherOccupation: family.otherOccupation,
       samurdhiSubsidy: family.samurdhiSubsidy
         ? {
-            id: family.samurdhiSubsidy.subsisdy_id,
-            amount: family.samurdhiSubsidy.amount,
-          }
+          id: family.samurdhiSubsidy.subsisdy_id,
+          amount: family.samurdhiSubsidy.amount,
+        }
         : null,
       aswasumaCategory: family.aswasumaCategory
         ? {
-            id: family.aswasumaCategory.aswesuma_cat_id,
-            nameEnglish: family.aswasumaCategory.nameEnglish,
-            nameSinhala: family.aswasumaCategory.nameSinhala,
-            nameTamil: family.aswasumaCategory.nameTamil,
-          }
+          id: family.aswasumaCategory.aswesuma_cat_id,
+          nameEnglish: family.aswasumaCategory.nameEnglish,
+          nameSinhala: family.aswasumaCategory.nameSinhala,
+          nameTamil: family.aswasumaCategory.nameTamil,
+        }
         : null,
       empowermentDimension: family.empowermentDimension
         ? {
-            id: family.empowermentDimension.empowerment_dimension_id,
-            nameEnglish: family.empowermentDimension.nameEnglish,
-            nameSinhala: family.empowermentDimension.nameSinhala,
-            nameTamil: family.empowermentDimension.nameTamil,
-          }
+          id: family.empowermentDimension.empowerment_dimension_id,
+          nameEnglish: family.empowermentDimension.nameEnglish,
+          nameSinhala: family.empowermentDimension.nameSinhala,
+          nameTamil: family.empowermentDimension.nameTamil,
+        }
         : null,
       livelihood: family.livelihood
         ? {
-            id: family.livelihood.id,
-            nameEnglish: family.livelihood.english_name,
-            nameSinhala: family.livelihood.sinhala_name,
-            nameTamil: family.livelihood.tamil_name,
-          }
+          id: family.livelihood.id,
+          nameEnglish: family.livelihood.english_name,
+          nameSinhala: family.livelihood.sinhala_name,
+          nameTamil: family.livelihood.tamil_name,
+        }
         : null,
       projectType: family.projectType
         ? {
-            id: family.projectType.project_type_id,
-            nameEnglish: family.projectType.nameEnglish,
-            nameSinhala: family.projectType.nameSinhala,
-            nameTamil: family.projectType.nameTamil,
-          }
+          id: family.projectType.project_type_id,
+          nameEnglish: family.projectType.nameEnglish,
+          nameSinhala: family.projectType.nameSinhala,
+          nameTamil: family.projectType.nameTamil,
+        }
         : null,
       otherProject: family.otherProject,
       childName: family.childName,
@@ -447,11 +443,11 @@ export class SamurdhiFamilyService {
       childGender: family.childGender,
       jobField: family.jobField
         ? {
-            id: family.jobField.job_field_id,
-            nameEnglish: family.jobField.nameEnglish,
-            nameSinhala: family.jobField.nameSinhala,
-            nameTamil: family.jobField.nameTamil,
-          }
+          id: family.jobField.job_field_id,
+          nameEnglish: family.jobField.nameEnglish,
+          nameSinhala: family.jobField.nameSinhala,
+          nameTamil: family.jobField.nameTamil,
+        }
         : null,
       otherJobField: family.otherJobField,
       resources: resourceNames,
@@ -480,27 +476,27 @@ export class SamurdhiFamilyService {
       location: {
         district: family.district
           ? {
-              id: family.district.district_id,
-              name: family.district.district_name,
-            }
+            id: family.district.district_id,
+            name: family.district.district_name,
+          }
           : null,
         divisionalSecretariat: family.divisionalSecretariat
           ? {
-              id: family.divisionalSecretariat.ds_id,
-              name: family.divisionalSecretariat.ds_name,
-            }
+            id: family.divisionalSecretariat.ds_id,
+            name: family.divisionalSecretariat.ds_name,
+          }
           : null,
         samurdhiBank: family.samurdhiBank
           ? {
-              id: family.samurdhiBank.zone_id,
-              name: family.samurdhiBank.zone_name,
-            }
+            id: family.samurdhiBank.zone_id,
+            name: family.samurdhiBank.zone_name,
+          }
           : null,
         gramaNiladhariDivision: family.gramaNiladhariDivision
           ? {
-              id: family.gramaNiladhariDivision.gnd_id,
-              name: family.gramaNiladhariDivision.gnd_name,
-            }
+            id: family.gramaNiladhariDivision.gnd_id,
+            name: family.gramaNiladhariDivision.gnd_name,
+          }
           : null,
         commercialBankDetails: {
           accountName: family.commercialBankAccountName,
@@ -593,8 +589,8 @@ export class SamurdhiFamilyService {
       if (dto.beneficiary_type_id !== undefined)
         updateData.beneficiaryType = dto.beneficiary_type_id
           ? ({
-              beneficiary_type_id: dto.beneficiary_type_id,
-            } as BeneficiaryStatus)
+            beneficiary_type_id: dto.beneficiary_type_id,
+          } as BeneficiaryStatus)
           : undefined;
 
       if (dto.areaClassification !== undefined) {
@@ -630,8 +626,8 @@ export class SamurdhiFamilyService {
       if (dto.disability_id !== undefined) {
         updateData.disability = dto.disability_id
           ? await this.familyRepo.manager.findOneBy(Disability, {
-              disabilityId: dto.disability_id,
-            })
+            disabilityId: dto.disability_id,
+          })
           : null;
       }
 
@@ -680,8 +676,8 @@ export class SamurdhiFamilyService {
       if (dto.empowerment_dimension_id !== undefined)
         updateData.empowermentDimension = dto.empowerment_dimension_id
           ? ({
-              empowerment_dimension_id: dto.empowerment_dimension_id,
-            } as EmpowermentDimension)
+            empowerment_dimension_id: dto.empowerment_dimension_id,
+          } as EmpowermentDimension)
           : undefined;
 
       // Update project info
@@ -761,12 +757,8 @@ export class SamurdhiFamilyService {
         updateData.samurdhiBankAccountNumber = dto.samurdhiBankAccountNumber;
       if (dto.samurdhiBankName !== undefined)
         updateData.samurdhiBankName = dto.samurdhiBankName;
-      if (dto.samurdhi_bank_account_type_id !== undefined) {
-        updateData.samurdhiBankAccountType = dto.samurdhi_bank_account_type_id
-          ? await this.familyRepo.manager.findOneBy(AccountType, {
-              samurdhi_bank_account_type_id: dto.samurdhi_bank_account_type_id,
-            })
-          : null;
+      if (dto.samurdhiBankAccountType !== undefined) {
+        updateData.samurdhiBankAccountType = dto.samurdhiBankAccountType || null;
       }
 
       // Add the new bank transfer and subsidy fields
@@ -1450,9 +1442,9 @@ export class SamurdhiFamilyService {
         hasDisability: family.hasDisability,
         disability: family.disability
           ? {
-              id: family.disability.disabilityId,
-              nameEnglish: family.disability.nameEN,
-            }
+            id: family.disability.disabilityId,
+            nameEnglish: family.disability.nameEN,
+          }
           : null,
         mainProgram: family.mainProgram,
       })),

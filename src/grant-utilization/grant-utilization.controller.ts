@@ -20,6 +20,7 @@ export class GrantUtilizationController {
   ) {}
 
   @Post()
+  @UseGuards(AuthGuard)
   create(
     @Body() createGrantUtilizationDto: CreateGrantUtilizationDto,
     @Req() req: Request,
