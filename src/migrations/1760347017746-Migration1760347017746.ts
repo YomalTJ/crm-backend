@@ -44,13 +44,13 @@ export class Migration1760328641980 implements MigrationInterface {
       'CREATE TABLE `samurdhi_account_types` (`samurdhi_bank_account_type_id` int NOT NULL AUTO_INCREMENT, `name` varchar(255) NOT NULL, `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL, PRIMARY KEY (`samurdhi_bank_account_type_id`)) ENGINE=InnoDB',
     );
     await queryRunner.query(
-      "INSERT INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Saving', NOW(), NOW())",
+      "INSERT IGNORE INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Saving', NOW(), NOW())",
     );
     await queryRunner.query(
-      "INSERT INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Diriya Matha', NOW(), NOW())",
+      "INSERT IGNORE INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Diriya Matha', NOW(), NOW())",
     );
     await queryRunner.query(
-      "INSERT INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Kekulu Lama', NOW(), NOW())",
+      "INSERT IGNORE INTO `samurdhi_account_types` (`name`, `created_at`, `updated_at`) VALUES ('Kekulu Lama', NOW(), NOW())",
     );
 
     // Step 2: Create a temporary column to hold the new integer values
